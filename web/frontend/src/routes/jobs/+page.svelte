@@ -130,13 +130,13 @@
 
 	function setFilter(filter: string) {
 		activeFilter = filter;
-		const url = new URL(window.location.href);
+		const url = new URL($page.url);
 		if (filter === 'all') {
 			url.searchParams.delete('status');
 		} else {
 			url.searchParams.set('status', filter);
 		}
-		window.history.replaceState({}, '', url.toString());
+		void goto(url, { replaceState: true, noScroll: true, keepFocus: true });
 	}
 
 	function getJobsByStatus(status: string): BatchJobResponse[] {

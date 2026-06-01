@@ -23,6 +23,7 @@
 	import SourceFilesCard from './components/SourceFilesCard.svelte';
 	import UnidentifiedFilesCard from './components/UnidentifiedFilesCard.svelte';
 	import { createReviewState } from './stores/review-state.svelte';
+	import { shouldSyncTab, buildTabUrl, type ReviewTabId } from '$lib/utils/review-tab-sync';
 	import {
 		AlertTriangle,
 		ChevronLeft,
@@ -32,8 +33,8 @@
 
 	const s = createReviewState($page);
 
-	type TabId = 'movies' | 'failed';
-	let activeTab = $state<TabId>('movies');
+	const initialTabParam = $page.url.searchParams.get('tab');
+	let activeTab = $state<ReviewTabId>(initialTabParam === 'failed' ? 'failed' : 'movies');
 
 	const hasMovies = $derived(s.movieResults.length > 0);
 	const hasFailed = $derived(s.failedResults.length > 0);
@@ -44,6 +45,12 @@
 		} else if (hasMovies && activeTab === 'failed' && !hasFailed) {
 			activeTab = 'movies';
 		}
+	});
+
+	$effect(() => {
+		const currentParam = $page.url.searchParams.get('tab');
+		if (!shouldSyncTab(currentParam, activeTab)) return;
+		void goto(buildTabUrl($page.url, activeTab), { replaceState: true, noScroll: true, keepFocus: true });
 	});
 </script>
 
