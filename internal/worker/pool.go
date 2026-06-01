@@ -109,7 +109,7 @@ func (p *Pool) executeTask(task Task) {
 		if err != nil {
 			p.progress.Fail(taskID, err)
 		} else {
-			p.progress.Complete(taskID, fmt.Sprintf("Completed in %v", duration))
+			p.progress.Complete(taskID, fmt.Sprintf("Completed in %.1fs", duration.Seconds()))
 		}
 	}
 

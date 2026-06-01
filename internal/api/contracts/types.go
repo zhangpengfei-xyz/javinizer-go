@@ -229,8 +229,9 @@ type OrganizePreviewResponse struct {
 	FanartPath      string   `json:"fanart_path" example:"/path/to/output/IPX-535 [IdeaPocket] - Beautiful Woman (2021)/IPX-535-fanart.jpg"`
 	ExtrafanartPath string   `json:"extrafanart_path" example:"/path/to/output/IPX-535 [IdeaPocket] - Beautiful Woman (2021)/extrafanart"`
 	Screenshots     []string `json:"screenshots,omitempty" example:"fanart1.jpg,fanart2.jpg,fanart3.jpg"`
-	SourcePath      string   `json:"source_path,omitempty" example:"/source/folder/ABC-123.mp4"` // Original file path (for in-place modes)
-	OperationMode   string   `json:"operation_mode,omitempty" example:"organize"`                // Which mode was used for preview
+	TrailerPath     string   `json:"trailer_path,omitempty" example:"/path/to/output/IPX-535 [IdeaPocket] - Beautiful Woman (2021)/IPX-535-trailer.mp4"` // Empty if trailer download disabled or no trailer URL
+	SourcePath      string   `json:"source_path,omitempty" example:"/source/folder/ABC-123.mp4"`                                                         // Original file path (for in-place modes)
+	OperationMode   string   `json:"operation_mode,omitempty" example:"organize"`                                                                        // Which mode was used for preview
 }
 
 // BatchFileResult wraps worker.FileResult with additional API-specific fields

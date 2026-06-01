@@ -12,21 +12,19 @@ export function computeJobProgress(
 	totalFiles: number,
 	restProgress: number,
 	isRunning: boolean,
+	finishedCount: number = 0,
 ): number {
-	if (!isRunning) return restProgress;
-	if (!messagesByFile) return restProgress;
-	const entries = Object.values(messagesByFile);
-	if (entries.length === 0) return restProgress;
-	const total = Math.max(totalFiles, entries.length);
-	if (total === 0) return restProgress;
-	let done = 0;
+	if (totalFiles === 0) return restProgress;
+	if (!isRunning) {
+		return Math.min(Math.round((finishedCount / totalFiles) * 100), 100);
+	}
+	const entries = Object.values(messagesByFile ?? {});
 	let runningProgress = 0;
 	for (const m of entries) {
-		if (isTerminalStatus(m.status)) {
-			done++;
-		} else {
+		if (!isTerminalStatus(m.status)) {
 			runningProgress += Math.max(0, Math.min(100, m.progress));
 		}
 	}
-	return Math.min(Math.round(((done + runningProgress / 100) / total) * 100), 100);
+	const totalProgress = finishedCount + runningProgress / 100;
+	return Math.min(Math.round((totalProgress / totalFiles) * 100), 100);
 }

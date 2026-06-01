@@ -483,6 +483,12 @@
 													Review & Organize
 												</Button>
 											{/if}
+											{#if job.failed > 0}
+												<Button variant="outline" size="sm" class="min-w-[150px]" onclick={() => goto(`/review/${job.id}?tab=failed`)} title="View failed files in review">
+													<Eye class="h-4 w-4 mr-1" />
+													{job.completed > 0 ? 'Review Failed' : 'View Failed'}
+												</Button>
+											{/if}
 											<Button variant="ghost" size="sm" onclick={() => dismissJobMutation.mutate(job.id)} disabled={dismissJobMutation.isPending} title="Dismiss">
 												<Trash2 class="h-4 w-4 text-muted-foreground" />
 											</Button>
@@ -505,12 +511,10 @@
 												<Trash2 class="h-4 w-4 text-muted-foreground" />
 											</Button>
 										{:else if job.status.toLowerCase() === 'failed'}
-											{#if job.completed > 0}
-												<Button variant="outline" size="sm" onclick={() => goto(`/review/${job.id}`)}>
-													<Eye class="h-4 w-4 mr-1" />
-													Review
-												</Button>
-											{/if}
+											<Button variant="outline" size="sm" class="min-w-[150px]" onclick={() => goto(`/review/${job.id}?tab=failed`)} title="View failed files in review">
+												<Eye class="h-4 w-4 mr-1" />
+												{job.completed > 0 ? 'Review' : 'View Failed'}
+											</Button>
 											<Button variant="ghost" size="sm" onclick={() => dismissJobMutation.mutate(job.id)} disabled={dismissJobMutation.isPending} title="Dismiss">
 												<Trash2 class="h-4 w-4 text-muted-foreground" />
 											</Button>

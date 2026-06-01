@@ -475,6 +475,7 @@ export interface OrganizePreviewResponse {
 	fanart_path?: string; // Empty if fanart download disabled
 	extrafanart_path?: string; // Empty if extrafanart download disabled
 	screenshots?: string[]; // Empty if extrafanart download disabled
+	trailer_path?: string; // Empty if trailer download disabled or no trailer URL
 	source_path?: string; // Original file path (for in-place modes)
 	operation_mode?: string;
 }

@@ -24,15 +24,31 @@
 	import UnidentifiedFilesCard from './components/UnidentifiedFilesCard.svelte';
 	import { createReviewState } from './stores/review-state.svelte';
 	import {
+		AlertTriangle,
 		ChevronLeft,
-		CircleAlert
+		CircleAlert,
+		Film
 	} from 'lucide-svelte';
 
 	const s = createReviewState($page);
+
+	type TabId = 'movies' | 'failed';
+	let activeTab = $state<TabId>('movies');
+
+	const hasMovies = $derived(s.movieResults.length > 0);
+	const hasFailed = $derived(s.failedResults.length > 0);
+
+	$effect(() => {
+		if (!hasMovies && hasFailed) {
+			activeTab = 'failed';
+		} else if (hasMovies && activeTab === 'failed' && !hasFailed) {
+			activeTab = 'movies';
+		}
+	});
 </script>
 
 <div class="container mx-auto px-4 py-8">
-	<div class="{(s.viewMode === 'grid-cover') ? 'max-w-full' : 'max-w-7xl'} mx-auto space-y-6">
+	<div class="max-w-7xl mx-auto space-y-6">
 		{#if s.loading}
 			<div class="text-center py-12">
 				<p class="text-muted-foreground">Loading batch job...</p>
@@ -51,7 +67,7 @@
 					</Button>
 				</div>
 			</Card>
-		{:else if s.job && s.movieResults.length === 0 && s.failedResults.length === 0}
+		{:else if s.job && !hasMovies && !hasFailed}
 			<Card class="p-6">
 				<div class="text-center">
 					<p class="text-muted-foreground">No movies to review</p>
@@ -63,179 +79,265 @@
 					</Button>
 				</div>
 			</Card>
-		{:else if s.job && s.movieResults.length === 0 && s.failedResults.length > 0}
-			<UnidentifiedFilesCard
-				failedResults={s.failedResults}
-				onSearchManually={s.openRescrapeModalForFailed}
-			/>
-		{:else if s.currentMovie && s.currentResult}
-			<ReviewHeader
-				isUpdateMode={s.isUpdateMode}
-				canOrganize={s.canOrganize}
-				organizing={s.organizing}
-				movieResultsLength={s.movieResults.length}
-				destinationPath={s.destinationPath}
-				bind:viewMode={s.viewMode}
-				bind:forceOverwrite={s.forceOverwrite}
-				bind:preserveNfo={s.preserveNfo}
-				bind:skipNfo={s.skipNfo}
-				bind:skipDownload={s.skipDownload}
-				selectedCount={s.selectedCount}
-				allSelected={s.allSelected}
-				bulkExcluding={s.bulkExcludeMutation.isPending}
-				bulkRescraping={s.bulkRescraping}
-				completenessFilter={s.completenessFilter}
-				tierCounts={s.tierCounts}
-				selectionMode={s.selectionMode}
-				onToggleCompletenessTier={s.toggleCompletenessTier}
-				onToggleSelectionMode={s.toggleSelectionMode}
-				onSelectAll={s.selectAllMovies}
-				onDeselectAll={s.deselectAllMovies}
-				onBulkExclude={s.bulkExcludeMovies}
-				onBulkRescrape={s.openBulkRescrapeModal}
-				onClose={() => goto('/browse')}
-				onUpdateAll={s.updateAll}
-				onOrganizeAll={s.organizeAll}
-			/>
+		{:else if s.job}
+			<div class="border-b border-border">
+				<nav class="flex gap-1" aria-label="Review tabs">
+					<button
+						type="button"
+						role="tab"
+						id="movies-tab"
+						aria-selected={activeTab === 'movies'}
+						aria-controls="movies-panel"
+						onclick={() => (activeTab = 'movies')}
+						disabled={!hasMovies}
+						class="inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors
+							{activeTab === 'movies'
+								? 'border-primary text-primary'
+								: 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'}
+							{!hasMovies ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}"
+					>
+						<Film class="h-4 w-4" />
+						Movies
+						{#if hasMovies}
+							<span class="rounded-full bg-muted px-2 py-0.5 text-xs font-normal">
+								{s.movieResults.length}
+							</span>
+						{/if}
+					</button>
+					<button
+						type="button"
+						role="tab"
+						id="failed-tab"
+						aria-selected={activeTab === 'failed'}
+						aria-controls="failed-panel"
+						onclick={() => (activeTab = 'failed')}
+						disabled={!hasFailed}
+						class="inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors
+							{activeTab === 'failed'
+								? 'border-primary text-primary'
+								: 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'}
+							{!hasFailed ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}"
+					>
+						<AlertTriangle class="h-4 w-4" />
+						Failed
+						{#if hasFailed}
+							<span class="rounded-full bg-destructive/10 text-destructive px-2 py-0.5 text-xs font-normal">
+								{s.failedResults.length}
+							</span>
+						{/if}
+					</button>
+				</nav>
+			</div>
 
-			<OrganizeStatusCard
-				organizeStatus={s.organizeStatus}
-				organizeProgress={s.organizeProgress}
-				fileStatuses={s.fileStatuses}
-				expectedOrganizeFilePaths={s.expectedOrganizeFilePaths}
-				isUpdateMode={s.isUpdateMode}
-				onRetryFailed={s.retryFailed}
-				onContinue={() => goto('/browse')}
-			/>
-
-			<UnidentifiedFilesCard
-				failedResults={s.failedResults}
-				onSearchManually={s.openRescrapeModalForFailed}
-			/>
-
-			{#if s.viewMode === 'grid-poster' || s.viewMode === 'grid-cover'}
-				<div class="grid {s.viewMode === 'grid-cover' ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'} {s.viewMode === 'grid-cover' ? 'gap-2' : 'gap-4'}">
-					{#each s.filteredMovieGroups as group}
-						<ReviewGridCard
-							movieGroup={group}
-							isSelected={group.movieId === s.currentMovie?.id}
-							isEdited={s.editedMovies.has(group.primaryResult.file_path)}
-							isBulkSelected={s.selectedMovieIds.has(group.movieId)}
-							selectionMode={s.selectionMode}
-							displayPosterUrl={(() => {
-								const movie = group.primaryResult.data;
-								if (!movie) return undefined;
-								return s.resolvePosterUrl(movie, group.primaryResult.file_path);
-							})()}
-							displayCoverUrl={group.primaryResult.data?.cover_url}
-							displayImageType={s.viewMode === 'grid-cover' ? 'cover' : 'poster'}
-							previewImageURL={s.reviewPageController.previewImageURL}
-							onclick={(e) => {
-								if (s.selectionMode) {
-									s.toggleMovieSelection(group.movieId, e.shiftKey);
-								} else {
-									s.currentMovieIndex = s.movieGroups.findIndex(g => g.movieId === group.movieId);
-									s.viewMode = 'detail';
-								}
-							}}
-							completenessConfig={s.completenessConfig}
-						/>
-					{/each}
-				</div>
-			{:else}
-				{#key s.currentResult.file_path}
-					<div class="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6" in:fade|local={{ duration: 180 }}>
-					<ReviewMediaSidebar
-						currentMovie={s.currentMovie}
-						displayPosterUrl={s.displayPosterUrl}
-						showPosterPanel={s.showPosterPanel}
-						showCoverPanel={s.showCoverPanel}
-						showTrailerPanel={s.showTrailerPanel}
-						showScreenshotsPanel={s.showScreenshotsPanel}
-						bind:showAllSidebarScreenshots={s.showAllSidebarScreenshots}
-						bind:showTrailerModal={s.showTrailerModal}
-						onOpenPosterCropModal={s.posterCropController.openPosterCropModal}
-						onOpenCoverViewer={s.reviewPageController.openCoverViewer}
-						onOpenScreenshotViewer={s.reviewPageController.openScreenshotViewer}
-						onUseScreenshotAsPoster={s.useScreenshotAsPoster}
-						onResetPoster={s.resetPoster}
-						previewImageURL={s.reviewPageController.previewImageURL}
-					/>
-
-				<div class="space-y-6 min-w-0">
-					<MovieNavigationCard
-						bind:currentMovieIndex={s.currentMovieIndex}
+			<div
+				role="tabpanel"
+				id="movies-panel"
+				aria-labelledby="movies-tab"
+				hidden={activeTab !== 'movies'}
+				class={activeTab === 'movies' ? 'space-y-6' : ''}
+			>
+				{#if activeTab === 'movies' && s.currentMovie && s.currentResult}
+					<ReviewHeader
+						isUpdateMode={s.isUpdateMode}
+						canOrganize={s.canOrganize}
+						organizing={s.organizing}
 						movieResultsLength={s.movieResults.length}
-						currentMovieId={s.currentMovie.id}
-						hasChanges={s.reviewPageController.hasChanges(s.currentResult.file_path)}
-						onExclude={s.reviewPageController.excludeCurrentMovie}
+						destinationPath={s.destinationPath}
+						bind:viewMode={s.viewMode}
+						bind:forceOverwrite={s.forceOverwrite}
+						bind:preserveNfo={s.preserveNfo}
+						bind:skipNfo={s.skipNfo}
+						bind:skipDownload={s.skipDownload}
+						selectedCount={s.selectedCount}
+						allSelected={s.allSelected}
+						bulkExcluding={s.bulkExcludeMutation.isPending}
+						bulkRescraping={s.bulkRescraping}
+						completenessFilter={s.completenessFilter}
+						tierCounts={s.tierCounts}
+						selectionMode={s.selectionMode}
+						onToggleCompletenessTier={s.toggleCompletenessTier}
+						onToggleSelectionMode={s.toggleSelectionMode}
+						onSelectAll={s.selectAllMovies}
+						onDeselectAll={s.deselectAllMovies}
+						onBulkExclude={s.bulkExcludeMovies}
+						onBulkRescrape={s.openBulkRescrapeModal}
+						onClose={() => goto('/browse')}
+						onUpdateAll={s.updateAll}
+						onOrganizeAll={s.organizeAll}
 					/>
 
-					<SourceFilesCard
-						sourceResults={s.currentMovieGroup?.results || [s.currentResult]}
-						primaryFilePath={s.currentResult.file_path}
-						bind:showFullSourcePath={s.showFullSourcePath}
+					<OrganizeStatusCard
+						organizeStatus={s.organizeStatus}
+						organizeProgress={s.organizeProgress}
+						fileStatuses={s.fileStatuses}
+						expectedOrganizeFilePaths={s.expectedOrganizeFilePaths}
+						isUpdateMode={s.isUpdateMode}
+						onRetryFailed={s.retryFailed}
+						onContinue={() => goto('/browse')}
 					/>
 
-					{#if s.canOrganize}
-						<DestinationSettingsCard
-							bind:destinationPath={s.destinationPath}
-							bind:organizeOperation={s.organizeOperation}
-						preview={s.preview}
-						previewNeedsDestination={s.previewNeedsDestination}
-							effectiveOperationMode={s.getEffectiveOperationMode()}
-							bind:showAllPreviewScreenshots={s.showAllPreviewScreenshots}
-							bind:skipNfo={s.skipNfo}
-							bind:skipDownload={s.skipDownload}
-							onOpenDestinationBrowser={s.reviewPageController.openDestinationBrowser}
-						/>
+					{#if s.viewMode === 'grid-poster' || s.viewMode === 'grid-cover'}
+						<div class="grid {s.viewMode === 'grid-cover' ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'} {s.viewMode === 'grid-cover' ? 'gap-2' : 'gap-4'}">
+							{#each s.filteredMovieGroups as group}
+								<ReviewGridCard
+									movieGroup={group}
+									isSelected={group.movieId === s.currentMovie?.id}
+									isEdited={s.editedMovies.has(group.primaryResult.file_path)}
+									isBulkSelected={s.selectedMovieIds.has(group.movieId)}
+									selectionMode={s.selectionMode}
+									displayPosterUrl={(() => {
+										const movie = group.primaryResult.data;
+										if (!movie) return undefined;
+										return s.resolvePosterUrl(movie, group.primaryResult.file_path);
+									})()}
+									displayCoverUrl={group.primaryResult.data?.cover_url}
+									displayImageType={s.viewMode === 'grid-cover' ? 'cover' : 'poster'}
+									previewImageURL={s.reviewPageController.previewImageURL}
+									onclick={(e) => {
+										if (s.selectionMode) {
+											s.toggleMovieSelection(group.movieId, e.shiftKey);
+										} else {
+											s.currentMovieIndex = s.movieGroups.findIndex(g => g.movieId === group.movieId);
+											s.viewMode = 'detail';
+										}
+									}}
+									completenessConfig={s.completenessConfig}
+								/>
+							{/each}
+						</div>
+					{:else}
+						{#key s.currentResult.file_path}
+							<div class="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6" in:fade|local={{ duration: 180 }}>
+							<ReviewMediaSidebar
+								currentMovie={s.currentMovie}
+								displayPosterUrl={s.displayPosterUrl}
+								showPosterPanel={s.showPosterPanel}
+								showCoverPanel={s.showCoverPanel}
+								showTrailerPanel={s.showTrailerPanel}
+								showScreenshotsPanel={s.showScreenshotsPanel}
+								bind:showAllSidebarScreenshots={s.showAllSidebarScreenshots}
+								bind:showTrailerModal={s.showTrailerModal}
+								onOpenPosterCropModal={s.posterCropController.openPosterCropModal}
+								onOpenCoverViewer={s.reviewPageController.openCoverViewer}
+								onOpenScreenshotViewer={s.reviewPageController.openScreenshotViewer}
+								onUseScreenshotAsPoster={s.useScreenshotAsPoster}
+								onResetPoster={s.resetPoster}
+								previewImageURL={s.reviewPageController.previewImageURL}
+							/>
+
+						<div class="space-y-6 min-w-0">
+							<MovieNavigationCard
+								bind:currentMovieIndex={s.currentMovieIndex}
+								movieResultsLength={s.movieResults.length}
+								currentMovieId={s.currentMovie.id}
+								hasChanges={s.reviewPageController.hasChanges(s.currentResult.file_path)}
+								onExclude={s.reviewPageController.excludeCurrentMovie}
+							/>
+
+							<SourceFilesCard
+								sourceResults={s.currentMovieGroup?.results || [s.currentResult]}
+								primaryFilePath={s.currentResult.file_path}
+								bind:showFullSourcePath={s.showFullSourcePath}
+							/>
+
+							{#if s.canOrganize}
+								<DestinationSettingsCard
+									bind:destinationPath={s.destinationPath}
+									bind:organizeOperation={s.organizeOperation}
+								preview={s.preview}
+								previewNeedsDestination={s.previewNeedsDestination}
+									effectiveOperationMode={s.getEffectiveOperationMode()}
+									bind:showAllPreviewScreenshots={s.showAllPreviewScreenshots}
+									bind:skipNfo={s.skipNfo}
+									bind:skipDownload={s.skipDownload}
+									onOpenDestinationBrowser={s.reviewPageController.openDestinationBrowser}
+								/>
+							{/if}
+
+							<MovieMetadataCard
+								currentMovie={s.currentMovie}
+								currentResult={s.currentResult}
+								bind:showFieldScraperSources={s.showFieldScraperSources}
+								isRescraping={s.rescrapingStates.get(s.currentResult?.movie_id || '') || false}
+								onOpenRescrape={() => s.currentResult && s.openRescrapeModal(s.currentResult.movie_id)}
+								onResetCurrentMovie={s.resetCurrentMovie}
+								onUpdateCurrentMovie={s.updateCurrentMovie}
+							/>
+
+							<Card class="p-6">
+								<ActressEditor
+									movie={s.currentMovie!}
+									onUpdate={s.updateCurrentMovie}
+									actressSources={s.currentResult.actress_sources}
+									showFieldSources={s.showFieldScraperSources}
+								/>
+							</Card>
+
+							<ImagesMediaCard
+								showScreenshotsPanel={s.showScreenshotsPanel}
+								bind:showImagePanelContent={s.showImagePanelContent}
+								currentMovie={s.currentMovie}
+								currentResult={s.currentResult}
+								displayPosterUrl={s.displayPosterUrl}
+								showFieldScraperSources={s.showFieldScraperSources}
+								onUpdateCurrentMovie={s.updateCurrentMovie}
+								onUseScreenshotAsPoster={s.useScreenshotAsPoster}
+							/>
+
+							{#if s.canOrganize}
+								<ReviewActionBar
+									isUpdateMode={s.isUpdateMode}
+									organizing={s.organizing}
+									destinationPath={s.destinationPath}
+									movieResultsLength={s.movieResults.length}
+									onCancel={() => goto('/browse')}
+									onOrganizeAll={s.organizeAll}
+								/>
+							{/if}
+						</div>
+						</div>
+					{/key}
 					{/if}
-
-					<MovieMetadataCard
-						currentMovie={s.currentMovie}
-						currentResult={s.currentResult}
-						bind:showFieldScraperSources={s.showFieldScraperSources}
-						isRescraping={s.rescrapingStates.get(s.currentResult?.movie_id || '') || false}
-						onOpenRescrape={() => s.currentResult && s.openRescrapeModal(s.currentResult.movie_id)}
-						onResetCurrentMovie={s.resetCurrentMovie}
-						onUpdateCurrentMovie={s.updateCurrentMovie}
-					/>
-
+				{:else if activeTab === 'movies'}
 					<Card class="p-6">
-						<ActressEditor
-							movie={s.currentMovie!}
-							onUpdate={s.updateCurrentMovie}
-							actressSources={s.currentResult.actress_sources}
-							showFieldSources={s.showFieldScraperSources}
-						/>
+						<div class="text-center text-muted-foreground">
+							<p>No movies to review yet.</p>
+						</div>
 					</Card>
+				{/if}
+			</div>
 
-					<ImagesMediaCard
-						showScreenshotsPanel={s.showScreenshotsPanel}
-						bind:showImagePanelContent={s.showImagePanelContent}
-						currentMovie={s.currentMovie}
-						currentResult={s.currentResult}
-						displayPosterUrl={s.displayPosterUrl}
-						showFieldScraperSources={s.showFieldScraperSources}
-						onUpdateCurrentMovie={s.updateCurrentMovie}
-						onUseScreenshotAsPoster={s.useScreenshotAsPoster}
-					/>
-
-					{#if s.canOrganize}
-						<ReviewActionBar
-							isUpdateMode={s.isUpdateMode}
-							organizing={s.organizing}
-							destinationPath={s.destinationPath}
-							movieResultsLength={s.movieResults.length}
-							onCancel={() => goto('/browse')}
-							onOrganizeAll={s.organizeAll}
+			<div
+				role="tabpanel"
+				id="failed-panel"
+				aria-labelledby="failed-tab"
+				hidden={activeTab !== 'failed'}
+				class="space-y-6"
+			>
+				{#if activeTab === 'failed'}
+					{#if hasFailed}
+						<UnidentifiedFilesCard
+							failedResults={s.failedResults}
+							onSearchManually={s.openRescrapeModalForFailed}
 						/>
+						<div class="text-center">
+							<Button onclick={() => goto('/browse')}>
+								{#snippet children()}
+									<ChevronLeft class="h-4 w-4 mr-2" />
+									Back to Browse
+								{/snippet}
+							</Button>
+						</div>
+					{:else}
+						<Card class="p-6">
+							<div class="text-center text-muted-foreground">
+								<p>No failed files. Everything was identified successfully.</p>
+							</div>
+						</Card>
 					{/if}
-				</div>
-				</div>
-			{/key}
-			{/if}
-{/if}
+				{/if}
+			</div>
+		{/if}
 	</div>
 </div>
 

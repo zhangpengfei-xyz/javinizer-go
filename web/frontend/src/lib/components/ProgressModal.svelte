@@ -100,11 +100,13 @@
 	});
 
 	const liveProgress = $derived.by(() => {
+		const finishedCount = (job?.completed ?? 0) + (job?.failed ?? 0);
 		return computeJobProgress(
 			wsState.messagesByFile[jobId],
 			job?.total_files ?? 0,
 			job?.progress ?? 0,
 			job?.status?.toLowerCase() === 'running',
+			finishedCount,
 		);
 	});
 
@@ -201,7 +203,7 @@
 					<div class="flex items-center justify-between text-xs text-muted-foreground">
 						<span>{liveProgress.toFixed(1)}%</span>
 						<span>
-							{#if completedFiles.length > 0}<span class="text-green-600 dark:text-green-400">{completedFiles.length} done</span> • {/if}{#if failedFiles.length > 0}<span class="text-red-600 dark:text-red-400">{failedFiles.length} failed</span> • {/if}{#if queuedFiles.length > 0}{queuedFiles.length} queued{/if}
+							{#if failedFiles.length > 0}<span class="text-red-600 dark:text-red-400">{failedFiles.length} failed</span> • {/if}{#if queuedFiles.length > 0}{queuedFiles.length} queued{/if}
 						</span>
 					</div>
 				</div>

@@ -157,6 +157,32 @@ func generateFanartPath(movie *models.Movie, fileResults []*worker.FileResult, c
 	return previewJoinPath(folderPath, fanartFileName)
 }
 
+func generateTrailerPath(movie *models.Movie, fileResults []*worker.FileResult, cfg *config.Config, ctx *template.Context, templateEngine *template.Engine, folderPath string) string {
+	if !cfg.Output.DownloadTrailer || movie == nil || movie.TrailerURL == "" {
+		return ""
+	}
+
+	trailerCtx := ctx.Clone()
+	if first := firstValidFileResult(fileResults); first != nil {
+		trailerCtx.PartNumber = first.PartNumber
+		trailerCtx.PartSuffix = first.PartSuffix
+		trailerCtx.IsMultiPart = first.IsMultiPart
+	}
+	trailerFileName, err := templateEngine.Execute(cfg.Output.TrailerFormat, trailerCtx)
+	if err != nil || trailerFileName == "" {
+		trailerFileName = fmt.Sprintf("%s-trailer.mp4", movie.ID)
+	}
+	trailerFileName = template.SanitizeFilename(trailerFileName)
+	if trailerFileName == "" {
+		sanitizedID := template.SanitizeFilename(movie.ID)
+		if sanitizedID == "" {
+			sanitizedID = "unknown"
+		}
+		trailerFileName = fmt.Sprintf("%s-trailer.mp4", sanitizedID)
+	}
+	return previewJoinPath(folderPath, trailerFileName)
+}
+
 func generateScreenshotNames(movie *models.Movie, cfg *config.Config, ctx *template.Context, templateEngine *template.Engine) []string {
 	screenshots := []string{}
 	if !cfg.Output.DownloadExtrafanart || len(movie.Screenshots) == 0 {
@@ -186,7 +212,7 @@ func generateScreenshotNames(movie *models.Movie, cfg *config.Config, ctx *templ
 	return screenshots
 }
 
-func validatePathLengths(cfg *config.Config, templateEngine *template.Engine, videoFiles []string, nfoPath string, nfoPaths []string, posterPath string, fanartPath string, extrafanartPath string, screenshots []string) {
+func validatePathLengths(cfg *config.Config, templateEngine *template.Engine, videoFiles []string, nfoPath string, nfoPaths []string, posterPath string, fanartPath string, extrafanartPath string, screenshots []string, trailerPath string) {
 	if cfg.Output.MaxPathLength <= 0 {
 		return
 	}
@@ -216,6 +242,11 @@ func validatePathLengths(cfg *config.Config, templateEngine *template.Engine, vi
 		screenshotPath := previewJoinPath(extrafanartPath, screenshot)
 		if err := templateEngine.ValidatePathLength(screenshotPath, cfg.Output.MaxPathLength); err != nil {
 			logging.Warnf("Preview: screenshot path exceeds max length: %s (length: %d, max: %d)", screenshotPath, len(screenshotPath), cfg.Output.MaxPathLength)
+		}
+	}
+	if trailerPath != "" {
+		if err := templateEngine.ValidatePathLength(trailerPath, cfg.Output.MaxPathLength); err != nil {
+			logging.Warnf("Preview: trailer path exceeds max length: %s (length: %d, max: %d)", trailerPath, len(trailerPath), cfg.Output.MaxPathLength)
 		}
 	}
 }

@@ -5143,6 +5143,11 @@ const docTemplate = `{
                     "type": "string",
                     "example": "IdeaPocket/2025"
                 },
+                "trailer_path": {
+                    "description": "Empty if trailer download disabled or no trailer URL",
+                    "type": "string",
+                    "example": "/path/to/output/IPX-535 [IdeaPocket] - Beautiful Woman (2021)/IPX-535-trailer.mp4"
+                },
                 "video_files": {
                     "description": "For multi-part files: all video file paths",
                     "type": "array",

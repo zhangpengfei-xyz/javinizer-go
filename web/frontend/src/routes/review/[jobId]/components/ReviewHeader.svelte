@@ -94,6 +94,7 @@
 			<Button
 				size="sm"
 				variant={viewMode === 'detail' ? 'default' : 'ghost'}
+				class="w-24 justify-center"
 				onclick={() => { viewMode = 'detail'; }}
 			>
 				{#snippet children()}
@@ -104,6 +105,7 @@
 			<Button
 				size="sm"
 				variant={viewMode === 'grid-poster' ? 'default' : 'ghost'}
+				class="w-24 justify-center"
 				onclick={() => { viewMode = 'grid-poster'; }}
 			>
 				{#snippet children()}
@@ -114,6 +116,7 @@
 			<Button
 				size="sm"
 				variant={viewMode === 'grid-cover' ? 'default' : 'ghost'}
+				class="w-24 justify-center"
 				onclick={() => { viewMode = 'grid-cover'; }}
 			>
 				{#snippet children()}
@@ -122,6 +125,7 @@
 				{/snippet}
 			</Button>
 		</div>
+		<div class="h-8 w-px bg-border"></div>
 		<Button variant="outline" onclick={onClose} disabled={organizing}>
 			{#snippet children()}
 				<X class="h-4 w-4 mr-2" />
@@ -201,35 +205,44 @@
 				</button>
 			{/each}
 		</div>
-	</div>
-{/if}
-
-{#if selectedCount > 0}
-	<div class="flex items-center gap-3 mb-4 px-1">
-		<span class="text-sm font-medium text-muted-foreground">
-			{selectedCount} selected
-		</span>
-		<div class="h-4 w-px bg-border"></div>
-		<Button size="sm" variant="outline" onclick={onBulkExclude} disabled={bulkExcluding || bulkRescraping} class="text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300">
-			{#snippet children()}
-				{#if bulkExcluding}
-					<LoaderCircle class="h-4 w-4 mr-1 animate-spin" />
-				{:else}
-					<Trash2 class="h-4 w-4 mr-1" />
-				{/if}
-				Remove
-			{/snippet}
-		</Button>
-		<Button size="sm" variant="outline" onclick={onBulkRescrape} disabled={bulkExcluding || bulkRescraping}>
-			{#snippet children()}
-				{#if bulkRescraping}
-					<LoaderCircle class="h-4 w-4 mr-1 animate-spin" />
-				{:else}
-					<RotateCcw class="h-4 w-4 mr-1" />
-				{/if}
-				Rescrape
-			{/snippet}
-		</Button>
+		{#if selectedCount > 0}
+			<div class="ml-auto flex items-center gap-3">
+				<span class="text-sm font-medium text-muted-foreground whitespace-nowrap">
+					{selectedCount} selected
+				</span>
+				<Button
+					size="sm"
+					variant="outline"
+					onclick={onBulkExclude}
+					disabled={bulkExcluding || bulkRescraping}
+					class="text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
+				>
+					{#snippet children()}
+						{#if bulkExcluding}
+							<LoaderCircle class="h-4 w-4 mr-1 animate-spin" />
+						{:else}
+							<Trash2 class="h-4 w-4 mr-1" />
+						{/if}
+						Remove
+					{/snippet}
+				</Button>
+				<Button
+					size="sm"
+					variant="outline"
+					onclick={onBulkRescrape}
+					disabled={bulkExcluding || bulkRescraping}
+				>
+					{#snippet children()}
+						{#if bulkRescraping}
+							<LoaderCircle class="h-4 w-4 mr-1 animate-spin" />
+						{:else}
+							<RotateCcw class="h-4 w-4 mr-1" />
+						{/if}
+						Rescrape
+					{/snippet}
+				</Button>
+			</div>
+		{/if}
 	</div>
 {/if}
 

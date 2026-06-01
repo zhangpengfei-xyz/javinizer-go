@@ -1431,6 +1431,10 @@ definitions:
         description: Subfolder hierarchy relative to destination (e.g. "Studio/Year")
         example: IdeaPocket/2025
         type: string
+      trailer_path:
+        description: Empty if trailer download disabled or no trailer URL
+        example: /path/to/output/IPX-535 [IdeaPocket] - Beautiful Woman (2021)/IPX-535-trailer.mp4
+        type: string
       video_files:
         description: 'For multi-part files: all video file paths'
         items:

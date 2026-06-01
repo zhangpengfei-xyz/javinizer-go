@@ -225,6 +225,9 @@
 						{#if preview.fanart_path}
 							<div class="break-all">🖼️ {extractFileName(preview.fanart_path)}</div>
 						{/if}
+						{#if preview.trailer_path}
+							<div class="break-all">🎞️ {extractFileName(preview.trailer_path)}</div>
+						{/if}
 						{@render screenshotList(4)}
 					</div>
 				</div>
@@ -264,6 +267,9 @@
 					{#if preview.fanart_path}
 						<div class="break-all" style="margin-left: 4px">🖼️ {extractFileName(preview.fanart_path)}</div>
 					{/if}
+					{#if preview.trailer_path}
+						<div class="break-all" style="margin-left: 4px">🎞️ {extractFileName(preview.trailer_path)}</div>
+					{/if}
 					{@render screenshotList(8)}
 				</div>
 			</div>
@@ -288,6 +294,9 @@
 						{/if}
 						{#if preview.fanart_path}
 							<div class="break-all">🖼️ {extractFileName(preview.fanart_path)}</div>
+						{/if}
+						{#if preview.trailer_path}
+							<div class="break-all">🎞️ {extractFileName(preview.trailer_path)}</div>
 						{/if}
 						{@render screenshotList(4)}
 					</div>
@@ -325,6 +334,9 @@
 						{/if}
 						{#if preview.fanart_path}
 							<div class="break-all" style="margin-left: {fileIndent + 4}px">🖼️ {extractFileName(preview.fanart_path)}</div>
+						{/if}
+						{#if preview.trailer_path}
+							<div class="break-all" style="margin-left: {fileIndent + 4}px">🎞️ {extractFileName(preview.trailer_path)}</div>
 						{/if}
 						{@render screenshotList(fileIndent + 4)}
 					</div>

@@ -130,6 +130,7 @@ func generatePreview(movie *models.Movie, fileResults []*worker.FileResult, dest
 	var posterPath, fanartPath string
 	var extrafanartPath string
 	var screenshots []string
+	var trailerPath string
 	if !skipDownload {
 		posterPath = generatePosterPath(movie, fileResults, cfg, previewCtx, sharedEngine, folderPath)
 		fanartPath = generateFanartPath(movie, fileResults, cfg, previewCtx, sharedEngine, folderPath)
@@ -137,9 +138,10 @@ func generatePreview(movie *models.Movie, fileResults []*worker.FileResult, dest
 			extrafanartPath = previewJoinPath(folderPath, cfg.Output.ScreenshotFolder)
 		}
 		screenshots = generateScreenshotNames(movie, cfg, previewCtx, sharedEngine)
+		trailerPath = generateTrailerPath(movie, fileResults, cfg, previewCtx, sharedEngine, folderPath)
 	}
 
-	validatePathLengths(cfg, sharedEngine, videoFiles, nfoPath, nfoPaths, posterPath, fanartPath, extrafanartPath, screenshots)
+	validatePathLengths(cfg, sharedEngine, videoFiles, nfoPath, nfoPaths, posterPath, fanartPath, extrafanartPath, screenshots, trailerPath)
 
 	sourcePathField := ""
 	if operationMode != types.OperationModeOrganize && operationMode != "" {
@@ -160,6 +162,7 @@ func generatePreview(movie *models.Movie, fileResults []*worker.FileResult, dest
 		FanartPath:      fanartPath,
 		ExtrafanartPath: extrafanartPath,
 		Screenshots:     screenshots,
+		TrailerPath:     trailerPath,
 		SourcePath:      sourcePathField,
 		OperationMode:   string(operationMode),
 	}
@@ -321,6 +324,7 @@ func generateUNCPreview(movie *models.Movie, fileResults []*worker.FileResult, d
 	var posterPath, fanartPath string
 	var extrafanartPath string
 	var screenshots []string
+	var trailerPath string
 	if !skipDownload {
 		posterPath = generatePosterPath(movie, fileResults, cfg, previewCtx, sharedEngine, folderPath)
 		fanartPath = generateFanartPath(movie, fileResults, cfg, previewCtx, sharedEngine, folderPath)
@@ -328,9 +332,10 @@ func generateUNCPreview(movie *models.Movie, fileResults []*worker.FileResult, d
 			extrafanartPath = previewJoinPath(folderPath, cfg.Output.ScreenshotFolder)
 		}
 		screenshots = generateScreenshotNames(movie, cfg, previewCtx, sharedEngine)
+		trailerPath = generateTrailerPath(movie, fileResults, cfg, previewCtx, sharedEngine, folderPath)
 	}
 
-	validatePathLengths(cfg, sharedEngine, videoFiles, nfoPath, nfoPaths, posterPath, fanartPath, extrafanartPath, screenshots)
+	validatePathLengths(cfg, sharedEngine, videoFiles, nfoPath, nfoPaths, posterPath, fanartPath, extrafanartPath, screenshots, trailerPath)
 
 	sourcePathField := ""
 	if operationMode != types.OperationModeOrganize && operationMode != "" {
@@ -349,6 +354,7 @@ func generateUNCPreview(movie *models.Movie, fileResults []*worker.FileResult, d
 		FanartPath:      fanartPath,
 		ExtrafanartPath: extrafanartPath,
 		Screenshots:     screenshots,
+		TrailerPath:     trailerPath,
 		SourcePath:      sourcePathField,
 		OperationMode:   string(operationMode),
 	}
