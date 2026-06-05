@@ -196,11 +196,17 @@ func updateFileNFO(fileCtx context.Context, sourceDir string, filePath string, m
 	isMultiPart := false
 	var partNum int
 	if cfg.Metadata.NFO.PerFile && filePath != "" {
-		videoName := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
-		pn, ps, pt := matcher.DetectPartSuffix(videoName, movie.ID)
-		partNum = pn
-		partSuffix = ps
-		isMultiPart = pt == matcher.PatternExplicit
+		if info, ok := job.GetFileMatchInfo(filePath); ok {
+			isMultiPart = info.IsMultiPart
+			partNum = info.PartNumber
+			partSuffix = info.PartSuffix
+		} else {
+			videoName := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
+			pn, ps, pt, _ := matcher.DetectPartSuffix(videoName, movie.ID)
+			partNum = pn
+			partSuffix = ps
+			isMultiPart = pt == matcher.PatternExplicit
+		}
 	}
 
 	nfoPath, legacyPaths := nfo.ResolveNFOPath(sourceDir, movie, cfg.Metadata.NFO.FilenameTemplate, cfg.Output.GroupActress, cfg.Output.GroupActressName, cfg.Output.FirstNameOrder, cfg.Metadata.NFO.PerFile, isMultiPart, partSuffix, filePath)

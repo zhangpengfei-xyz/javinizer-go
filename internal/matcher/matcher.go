@@ -24,7 +24,8 @@ type MatchResult struct {
 	PartSuffix       string // "-A", "-pt1", "-part2" (always with leading dash)
 	IsMultiPart      bool   // Whether this is a multi-part file
 	MatchedBy        string // "regex" or "builtin"
-	MultipartPattern string // Pattern type: "explicit", "letter", or "" (see PatternExplicit, PatternLetter, PatternNone)
+	MultipartPattern string // Pattern type: "explicit", "letter", "trailing", or "" (see PatternExplicit, PatternLetter, PatternTrailing, PatternNone)
+	TrailingPrefix   string // For PatternTrailing: noise portion before the part number (e.g., "-un-javgg.net")
 }
 
 // NewMatcher creates a new file matcher
@@ -127,12 +128,13 @@ func (m *Matcher) matchWithRegex(file scanner.FileInfo, filename string, pattern
 	result.ID = strings.ToUpper(id)
 
 	// Detect part suffix from the rest of the filename
-	num, suffix, patternType := DetectPartSuffix(filename, result.ID)
+	num, suffix, patternType, trailingPrefix := DetectPartSuffix(filename, result.ID)
 	result.PartNumber = num
 	result.PartSuffix = suffix
 	result.MultipartPattern = patternType
+	result.TrailingPrefix = trailingPrefix
 	// Only mark explicit patterns as multipart immediately.
-	// Letter patterns need directory context validation via ValidateMultipartInDirectory().
+	// Letter and trailing patterns need directory context validation via ValidateMultipartInDirectory().
 	result.IsMultiPart = patternType == PatternExplicit
 
 	return result
@@ -197,12 +199,20 @@ func FilterSinglePart(results []MatchResult) []MatchResult {
 	return filtered
 }
 
-// ValidateMultipartInDirectory validates letter-based multipart patterns
-// by checking for sibling files in the same directory with the same ID.
-// Files with ambiguous letter patterns (-A, -B, -C) are only marked as multipart
-// if multiple files with the same movie ID exist in the same directory.
-// This prevents false positives for files like "ABW-121-C.mp4" where -C means
-// Chinese subtitles, not part 3.
+// ValidateMultipartInDirectory validates ambiguous multipart patterns
+// (letter-based and trailing-number) by checking for sibling files in the same
+// directory with the same ID.
+//
+// Validation rules:
+//   - PatternLetter: 2+ letter-pattern files with the same ID in the same directory
+//   - PatternTrailing: 2+ trailing-pattern files with the same ID, same directory,
+//     AND same TrailingPrefix (the noise portion before the part number must match)
+//   - PatternLetter and PatternTrailing do NOT cross-validate — they are separate conventions
+//
+// This prevents false positives for:
+//   - "ABW-121-C.mp4" where -C means Chinese subtitles, not part 3
+//   - "IPX-535-uncen-1.mp4" alone where -1 is not a part number
+//   - "IPX-535-uncen-1.mp4" + "IPX-535-C.mp4" which are different variants, not parts
 func ValidateMultipartInDirectory(results []MatchResult) []MatchResult {
 	if len(results) == 0 {
 		return results
@@ -224,24 +234,37 @@ func ValidateMultipartInDirectory(results []MatchResult) []MatchResult {
 		groups[key] = append(groups[key], i)
 	}
 
-	// For each group, upgrade letter patterns to multipart if multiple letter-pattern files exist
 	for _, indices := range groups {
 		if len(indices) < 2 {
 			continue
 		}
 
-		// Collect indices of files with letter patterns in this group
+		// Validate letter patterns: 2+ letter-pattern files with same ID = multipart
 		letterIndices := []int{}
 		for _, idx := range indices {
 			if validated[idx].MultipartPattern == PatternLetter {
 				letterIndices = append(letterIndices, idx)
 			}
 		}
-
-		// Multiple letter-pattern files with same ID = actual multipart
 		if len(letterIndices) >= 2 {
 			for _, idx := range letterIndices {
 				validated[idx].IsMultiPart = true
+			}
+		}
+
+		// Validate trailing patterns: group by prefix, 2+ with same prefix = multipart
+		prefixGroups := make(map[string][]int)
+		for _, idx := range indices {
+			if validated[idx].MultipartPattern == PatternTrailing {
+				prefix := strings.ToLower(validated[idx].TrailingPrefix)
+				prefixGroups[prefix] = append(prefixGroups[prefix], idx)
+			}
+		}
+		for _, trailingIndices := range prefixGroups {
+			if len(trailingIndices) >= 2 {
+				for _, idx := range trailingIndices {
+					validated[idx].IsMultiPart = true
+				}
 			}
 		}
 	}

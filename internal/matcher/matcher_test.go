@@ -829,6 +829,18 @@ func TestMatcher_PartSuffixVariations(t *testing.T) {
 
 		// No suffix - single part
 		{"No suffix", "IPX-535.mp4", "IPX-535", 0, false, PatternNone},
+
+		// Dot-separated explicit patterns
+		{"Dot pt1", "IPX-535.pt1.mp4", "IPX-535", 1, true, PatternExplicit},
+		{"Dot part1", "IPX-535.part1.mp4", "IPX-535", 1, true, PatternExplicit},
+		{"Dot plain number", "IPX-535.1.mp4", "IPX-535", 1, true, PatternExplicit},
+
+		// Dot-separated letter suffixes - ambiguous, require directory validation
+		{"Dot letter A", "IPX-535.A.mp4", "IPX-535", 1, false, PatternLetter},
+
+		// Trailing-number patterns - ambiguous, require directory validation
+		{"Trailing HD-1", "IPX-535-HD-1.mp4", "IPX-535", 1, false, PatternTrailing},
+		{"Trailing site tag", "SGKI-071-un-javgg.net-1.mp4", "SGKI-071", 1, false, PatternTrailing},
 	}
 
 	for _, tc := range testCases {
@@ -1347,11 +1359,34 @@ func TestMatcher_PartSuffixEdgeCases(t *testing.T) {
 		{"Part with text after", "IPX-535-part1-extra.mp4", "IPX-535", 1, "-part1", true, PatternExplicit},
 		{"Letter with text after", "IPX-535-A-extra.mp4", "IPX-535", 0, "", false, PatternNone}, // Extra text prevents letter detection
 
-		// Note: Letter suffixes now require directory validation before being treated as multipart.
-		// ABC-123A will have PartNumber=1 and PartSuffix="-A" but IsMultiPart=false until validated.
-		// This helps prevent false positives for single files with subtitle markers (-C for Chinese).
+		// ID ending in letter ABC-123A (letter pattern - needs validation)
 		{"ID ending in letter ABC-123A (letter pattern - needs validation)", "ABC-123A.mp4", "ABC-123", 1, "-A", false, PatternLetter},
-		{"ID with E suffix IPX-535E (correct: E is part of ID)", "IPX-535E.mp4", "IPX-535E", 0, "", false, PatternNone}, // E is part of ID (matched by regex)
+		{"ID with E suffix IPX-535E (correct: E is part of ID)", "IPX-535E.mp4", "IPX-535E", 0, "", false, PatternNone},
+
+		// ── Trailing-number pattern edge cases ────────────────────────────
+		{"Trailing with noise", "IPX-535-HD-1.mp4", "IPX-535", 1, "-1", false, PatternTrailing},
+		{"Trailing with site tag", "SGKI-071-un-javgg.net-1.mp4", "SGKI-071", 1, "-1", false, PatternTrailing},
+		{"Trailing with dot separator", "IPX-535.javdb.1.mp4", "IPX-535", 1, "-1", false, PatternTrailing},
+		{"Trailing single digit", "IPX-535-uncen-1.mp4", "IPX-535", 1, "-1", false, PatternTrailing},
+		{"Trailing double digit", "IPX-535-HD-12.mp4", "IPX-535", 12, "-12", false, PatternTrailing},
+
+		// ── Dot separator edge cases ──────────────────────────────────────
+		{"Dot pt1", "IPX-535.pt1.mp4", "IPX-535", 1, "-pt1", true, PatternExplicit},
+		{"Dot part2", "IPX-535.part2.mp4", "IPX-535", 2, "-part2", true, PatternExplicit},
+		{"Dot plain number", "IPX-535.1.mp4", "IPX-535", 1, "-1", true, PatternExplicit},
+		{"Dot letter", "IPX-535.A.mp4", "IPX-535", 1, "-A", false, PatternLetter},
+
+		// ── False negatives: should NOT be detected as multipart ──────────
+		{"Resolution 1080p", "IPX-535-1080p.mp4", "IPX-535", 0, "", false, PatternNone},
+		{"Resolution 720p", "IPX-535-720p.mp4", "IPX-535", 0, "", false, PatternNone},
+		{"Dot resolution 1080p", "IPX-535.1080p.mp4", "IPX-535", 0, "", false, PatternNone},
+		{"Version v2", "IPX-535-v2.mp4", "IPX-535", 0, "", false, PatternNone},
+		{"cd1 not separator+digit", "IPX-535-cd1.mp4", "IPX-535", 0, "", false, PatternNone},
+		{"Year 2020 (4 digits)", "IPX-535-2020.mp4", "IPX-535", 0, "", false, PatternNone},
+		{"Dot year 2024 (4 digits)", "IPX-535.2024.mp4", "IPX-535", 0, "", false, PatternNone},
+		{"pt0 not valid", "IPX-535-pt0.mp4", "IPX-535", 0, "", false, PatternNone},
+		{"pt100 exceeds 2-digit limit", "IPX-535-pt100.mp4", "IPX-535", 0, "", false, PatternNone},
+		{"Multi-letter not a part", "IPX-535-AB.mp4", "IPX-535", 0, "", false, PatternNone},
 	}
 
 	for _, tc := range testCases {
@@ -1574,6 +1609,72 @@ func TestValidateMultipartInDirectory(t *testing.T) {
 			desc:          "Three letter-pattern files with same ID should all be multipart",
 		},
 		{
+			name: "single trailing-number file - NOT multipart",
+			results: []MatchResult{
+				{
+					ID:               "IPX-535",
+					PartNumber:       1,
+					PartSuffix:       "-1",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-uncen",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-uncen-1.mp4"},
+				},
+			},
+			expectedMulti: []bool{false},
+			desc:          "Single file with trailing -1 (e.g. uncen-1) should NOT be treated as multipart",
+		},
+		{
+			name: "multiple trailing-pattern files same ID - IS multipart",
+			results: []MatchResult{
+				{
+					ID:               "SGKI-071",
+					PartNumber:       1,
+					PartSuffix:       "-1",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-un-javgg.net",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/SGKI-071-un-javgg.net-1.mp4"},
+				},
+				{
+					ID:               "SGKI-071",
+					PartNumber:       2,
+					PartSuffix:       "-2",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-un-javgg.net",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/SGKI-071-un-javgg.net-2.mp4"},
+				},
+			},
+			expectedMulti: []bool{true, true},
+			desc:          "Two trailing-pattern files with same ID should be detected as multipart",
+		},
+		{
+			name: "two trailing files same prefix validate each other",
+			results: []MatchResult{
+				{
+					ID:               "IPX-535",
+					PartNumber:       1,
+					PartSuffix:       "-1",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-HD",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-HD-1.mp4"},
+				},
+				{
+					ID:               "IPX-535",
+					PartNumber:       2,
+					PartSuffix:       "-2",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-HD",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-HD-2.mp4"},
+				},
+			},
+			expectedMulti: []bool{true, true},
+			desc:          "Two trailing-pattern files validate each other as multipart",
+		},
+		{
 			name:          "empty results",
 			results:       []MatchResult{},
 			expectedMulti: []bool{},
@@ -1616,6 +1717,296 @@ func TestValidateMultipartInDirectory(t *testing.T) {
 			},
 			expectedMulti: []bool{false},
 			desc:          "Files with no pattern should remain single-part",
+		},
+
+		// ── Trailing-pattern edge cases ────────────────────────────────────────
+		{
+			name: "three trailing-pattern files same ID",
+			results: []MatchResult{
+				{
+					ID:               "IPX-535",
+					PartNumber:       1,
+					PartSuffix:       "-1",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-HD",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-HD-1.mp4"},
+				},
+				{
+					ID:               "IPX-535",
+					PartNumber:       2,
+					PartSuffix:       "-2",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-HD",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-HD-2.mp4"},
+				},
+				{
+					ID:               "IPX-535",
+					PartNumber:       3,
+					PartSuffix:       "-3",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-HD",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-HD-3.mp4"},
+				},
+			},
+			expectedMulti: []bool{true, true, true},
+			desc:          "Three trailing-pattern files with same ID should all be multipart",
+		},
+		{
+			name: "single trailing file alone stays single",
+			results: []MatchResult{
+				{
+					ID:               "IPX-535",
+					PartNumber:       1,
+					PartSuffix:       "-1",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-uncen",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-uncen-1.mp4"},
+				},
+			},
+			expectedMulti: []bool{false},
+			desc:          "Lone trailing-pattern file (e.g. uncen-1) should NOT be multipart",
+		},
+		{
+			name: "trailing files in different directories - separate validation",
+			results: []MatchResult{
+				{
+					ID:               "IPX-535",
+					PartNumber:       1,
+					PartSuffix:       "-1",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-HD",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/dir1/IPX-535-HD-1.mp4"},
+				},
+				{
+					ID:               "IPX-535",
+					PartNumber:       2,
+					PartSuffix:       "-2",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-uncen",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/dir2/IPX-535-uncen-2.mp4"},
+				},
+			},
+			expectedMulti: []bool{false, false},
+			desc:          "Trailing-pattern files in different directories should NOT be grouped",
+		},
+		{
+			name: "trailing + letter patterns for same ID - do NOT cross-validate",
+			results: []MatchResult{
+				{
+					ID:               "IPX-535",
+					PartNumber:       1,
+					PartSuffix:       "-1",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-HD",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-HD-1.mp4"},
+				},
+				{
+					ID:               "IPX-535",
+					PartNumber:       2,
+					PartSuffix:       "-B",
+					MultipartPattern: PatternLetter,
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-B.mp4"},
+				},
+			},
+			expectedMulti: []bool{false, false},
+			desc:          "Trailing and letter patterns are separate conventions and should NOT cross-validate",
+		},
+		{
+			name: "trailing + explicit patterns for same ID",
+			results: []MatchResult{
+				{
+					ID:               "IPX-535",
+					PartNumber:       1,
+					PartSuffix:       "-1",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-HD",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-HD-1.mp4"},
+				},
+				{
+					ID:               "IPX-535",
+					PartNumber:       2,
+					PartSuffix:       "-pt2",
+					MultipartPattern: PatternExplicit,
+					IsMultiPart:      true,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-pt2.mp4"},
+				},
+			},
+			expectedMulti: []bool{false, true},
+			desc:          "Trailing stays false (only 1 ambiguous), explicit stays true",
+		},
+		{
+			name: "trailing file alongside no-pattern file - NOT validated",
+			results: []MatchResult{
+				{
+					ID:               "IPX-535",
+					PartNumber:       1,
+					PartSuffix:       "-1",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-HD",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-HD-1.mp4"},
+				},
+				{
+					ID:               "IPX-535",
+					PartNumber:       0,
+					PartSuffix:       "",
+					MultipartPattern: PatternNone,
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535.mp4"},
+				},
+			},
+			expectedMulti: []bool{false, false},
+			desc:          "No-pattern sibling doesn't count for trailing validation",
+		},
+		{
+			name: "multiple IDs in same directory - validated independently",
+			results: []MatchResult{
+				{
+					ID:               "IPX-535",
+					PartNumber:       1,
+					PartSuffix:       "-1",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-HD",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-HD-1.mp4"},
+				},
+				{
+					ID:               "IPX-535",
+					PartNumber:       2,
+					PartSuffix:       "-2",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-HD",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-HD-2.mp4"},
+				},
+				{
+					ID:               "ABC-123",
+					PartNumber:       3,
+					PartSuffix:       "-C",
+					MultipartPattern: PatternLetter,
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/ABC-123-C.mp4"},
+				},
+			},
+			expectedMulti: []bool{true, true, false},
+			desc:          "IPX-535 trailing pair validates; ABC-123 lone letter does not",
+		},
+		{
+			name: "trailing files with different prefixes - NOT multipart",
+			results: []MatchResult{
+				{
+					ID:               "IPX-535",
+					PartNumber:       1,
+					PartSuffix:       "-1",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-uncen",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-uncen-1.mp4"},
+				},
+				{
+					ID:               "IPX-535",
+					PartNumber:       2,
+					PartSuffix:       "-2",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-leak",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-leak-2.mp4"},
+				},
+			},
+			expectedMulti: []bool{false, false},
+			desc:          "Trailing files with different prefixes (e.g. uncen vs leak) are different variants, not parts",
+		},
+		{
+			name: "trailing file + letter file same ID - NOT cross-validated",
+			results: []MatchResult{
+				{
+					ID:               "IPX-535",
+					PartNumber:       1,
+					PartSuffix:       "-1",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-uncen",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-uncen-1.mp4"},
+				},
+				{
+					ID:               "IPX-535",
+					PartNumber:       3,
+					PartSuffix:       "-C",
+					MultipartPattern: PatternLetter,
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-C.mp4"},
+				},
+			},
+			expectedMulti: []bool{false, false},
+			desc:          "Trailing (uncen-1) + Letter (-C subtitles) are different conventions, NOT parts",
+		},
+		{
+			name: "trailing files with same prefix validate correctly",
+			results: []MatchResult{
+				{
+					ID:               "IPX-535",
+					PartNumber:       1,
+					PartSuffix:       "-1",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-HD",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-HD-1.mp4"},
+				},
+				{
+					ID:               "IPX-535",
+					PartNumber:       2,
+					PartSuffix:       "-2",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-HD",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/IPX-535-HD-2.mp4"},
+				},
+			},
+			expectedMulti: []bool{true, true},
+			desc:          "Trailing files with same prefix (-HD) should validate as multipart",
+		},
+		{
+			name: "three trailing files same prefix validates",
+			results: []MatchResult{
+				{
+					ID:               "SGKI-071",
+					PartNumber:       1,
+					PartSuffix:       "-1",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-un-javgg.net",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/SGKI-071-un-javgg.net-1.mp4"},
+				},
+				{
+					ID:               "SGKI-071",
+					PartNumber:       2,
+					PartSuffix:       "-2",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-un-javgg.net",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/SGKI-071-un-javgg.net-2.mp4"},
+				},
+				{
+					ID:               "SGKI-071",
+					PartNumber:       3,
+					PartSuffix:       "-3",
+					MultipartPattern: PatternTrailing,
+					TrailingPrefix:   "-un-javgg.net",
+					IsMultiPart:      false,
+					File:             scanner.FileInfo{Path: "/videos/SGKI-071-un-javgg.net-3.mp4"},
+				},
+			},
+			expectedMulti: []bool{true, true, true},
+			desc:          "Three trailing files with same prefix should all be multipart",
 		},
 	}
 
@@ -1749,5 +2140,242 @@ func TestValidateMultipartInDirectory_ActualMultipart(t *testing.T) {
 		if r.IsMultiPart != true {
 			t.Errorf("Result %d: expected IsMultiPart=true after validation, got false", i)
 		}
+	}
+}
+
+// TestValidateMultipartInDirectory_SGKI071EndToEnd tests the specific regression case
+// that motivated the PatternTrailing implementation: SGKI-071-un-javgg.net-{1,2}.mp4
+// producing duplicate filenames in the preview.
+func TestValidateMultipartInDirectory_SGKI071EndToEnd(t *testing.T) {
+	cfg := &config.MatchingConfig{
+		RegexEnabled: false,
+	}
+
+	matcher, err := NewMatcher(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create matcher: %v", err)
+	}
+
+	files := []scanner.FileInfo{
+		{Name: "SGKI-071-un-javgg.net-1.mp4", Extension: ".mp4", Path: "/videos/SGKI-071-un-javgg.net-1.mp4"},
+		{Name: "SGKI-071-un-javgg.net-2.mp4", Extension: ".mp4", Path: "/videos/SGKI-071-un-javgg.net-2.mp4"},
+	}
+
+	results := matcher.Match(files)
+	if len(results) != 2 {
+		t.Fatalf("Expected 2 results, got %d", len(results))
+	}
+
+	for i, r := range results {
+		if r.ID != "SGKI-071" {
+			t.Errorf("Result %d: expected ID SGKI-071, got %s", i, r.ID)
+		}
+	}
+
+	for i, r := range results {
+		if r.MultipartPattern != PatternTrailing {
+			t.Errorf("Result %d: expected PatternTrailing, got %s", i, r.MultipartPattern)
+		}
+		if r.IsMultiPart != false {
+			t.Errorf("Result %d: expected IsMultiPart=false before validation, got true", i)
+		}
+		if r.PartNumber == 0 {
+			t.Errorf("Result %d: expected non-zero PartNumber, got 0", i)
+		}
+	}
+
+	validated := ValidateMultipartInDirectory(results)
+	for i, r := range validated {
+		if r.IsMultiPart != true {
+			t.Errorf("Result %d: expected IsMultiPart=true after validation, got false", i)
+		}
+	}
+
+	if validated[0].PartNumber == validated[1].PartNumber {
+		t.Errorf("Part numbers should differ: both are %d", validated[0].PartNumber)
+	}
+}
+
+// TestValidateMultipartInDirectory_SingleTrailingFalsePositive verifies that a lone
+// file with a trailing-number pattern (e.g. IPX-535-uncen-1.mp4) is NOT falsely
+// confirmed as multipart.
+func TestValidateMultipartInDirectory_SingleTrailingFalsePositive(t *testing.T) {
+	cfg := &config.MatchingConfig{
+		RegexEnabled: false,
+	}
+
+	matcher, err := NewMatcher(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create matcher: %v", err)
+	}
+
+	files := []scanner.FileInfo{
+		{Name: "IPX-535-uncen-1.mp4", Extension: ".mp4", Path: "/videos/IPX-535-uncen-1.mp4"},
+	}
+
+	results := matcher.Match(files)
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(results))
+	}
+
+	if results[0].MultipartPattern != PatternTrailing {
+		t.Errorf("Expected PatternTrailing, got %s", results[0].MultipartPattern)
+	}
+
+	validated := ValidateMultipartInDirectory(results)
+	if validated[0].IsMultiPart != false {
+		t.Errorf("Single trailing-pattern file should NOT be confirmed as multipart")
+	}
+}
+
+// TestValidateMultipartInDirectory_DotSeparatorEndToEnd tests dot-separated multipart
+// files (e.g. IPX-535.part1.mp4 / IPX-535.part2.mp4).
+func TestValidateMultipartInDirectory_DotSeparatorEndToEnd(t *testing.T) {
+	cfg := &config.MatchingConfig{
+		RegexEnabled: false,
+	}
+
+	matcher, err := NewMatcher(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create matcher: %v", err)
+	}
+
+	files := []scanner.FileInfo{
+		{Name: "IPX-535.part1.mp4", Extension: ".mp4", Path: "/videos/IPX-535.part1.mp4"},
+		{Name: "IPX-535.part2.mp4", Extension: ".mp4", Path: "/videos/IPX-535.part2.mp4"},
+	}
+
+	results := matcher.Match(files)
+	if len(results) != 2 {
+		t.Fatalf("Expected 2 results, got %d", len(results))
+	}
+
+	for i, r := range results {
+		if r.ID != "IPX-535" {
+			t.Errorf("Result %d: expected ID IPX-535, got %s", i, r.ID)
+		}
+		if r.MultipartPattern != PatternExplicit {
+			t.Errorf("Result %d: expected PatternExplicit for dot-part1, got %s", i, r.MultipartPattern)
+		}
+		if r.IsMultiPart != true {
+			t.Errorf("Result %d: expected IsMultiPart=true for explicit pattern, got false", i)
+		}
+	}
+}
+
+// TestValidateMultipartInDirectory_TrailingLetterNoCrossValidation tests that
+// trailing-number and letter-pattern files do NOT cross-validate each other,
+// since they represent different conventions.
+func TestValidateMultipartInDirectory_TrailingLetterNoCrossValidation(t *testing.T) {
+	cfg := &config.MatchingConfig{
+		RegexEnabled: false,
+	}
+
+	matcher, err := NewMatcher(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create matcher: %v", err)
+	}
+
+	files := []scanner.FileInfo{
+		{Name: "IPX-535-HD-1.mp4", Extension: ".mp4", Path: "/videos/IPX-535-HD-1.mp4"},
+		{Name: "IPX-535-B.mp4", Extension: ".mp4", Path: "/videos/IPX-535-B.mp4"},
+	}
+
+	results := matcher.Match(files)
+	if len(results) != 2 {
+		t.Fatalf("Expected 2 results, got %d", len(results))
+	}
+
+	validated := ValidateMultipartInDirectory(results)
+	for i, r := range validated {
+		if r.IsMultiPart != false {
+			t.Errorf("Result %d: trailing+letter should NOT cross-validate as multipart", i)
+		}
+	}
+}
+
+func TestValidateMultipartInDirectory_CaseInsensitivePrefix(t *testing.T) {
+	results := []MatchResult{
+		{
+			ID:               "SGKI-071",
+			PartNumber:       1,
+			PartSuffix:       "-1",
+			MultipartPattern: PatternTrailing,
+			TrailingPrefix:   "-un-javgg.net",
+			IsMultiPart:      false,
+			File:             scanner.FileInfo{Path: "/videos/SGKI-071-un-javgg.net-1.mp4"},
+		},
+		{
+			ID:               "SGKI-071",
+			PartNumber:       2,
+			PartSuffix:       "-2",
+			MultipartPattern: PatternTrailing,
+			TrailingPrefix:   "-UN-JAVGG.NET",
+			IsMultiPart:      false,
+			File:             scanner.FileInfo{Path: "/videos/SGKI-071-UN-JAVGG.NET-2.mp4"},
+		},
+	}
+
+	validated := ValidateMultipartInDirectory(results)
+	if !validated[0].IsMultiPart {
+		t.Error("case-insensitive prefix should validate file 0")
+	}
+	if !validated[1].IsMultiPart {
+		t.Error("case-insensitive prefix should validate file 1")
+	}
+}
+
+func TestValidateMultipartInDirectory_MultiplePrefixGroupsSameDir(t *testing.T) {
+	results := []MatchResult{
+		{
+			ID:               "IPX-535",
+			PartNumber:       1,
+			PartSuffix:       "-1",
+			MultipartPattern: PatternTrailing,
+			TrailingPrefix:   "-HD",
+			IsMultiPart:      false,
+			File:             scanner.FileInfo{Path: "/videos/IPX-535-HD-1.mp4"},
+		},
+		{
+			ID:               "IPX-535",
+			PartNumber:       2,
+			PartSuffix:       "-2",
+			MultipartPattern: PatternTrailing,
+			TrailingPrefix:   "-HD",
+			IsMultiPart:      false,
+			File:             scanner.FileInfo{Path: "/videos/IPX-535-HD-2.mp4"},
+		},
+		{
+			ID:               "IPX-535",
+			PartNumber:       1,
+			PartSuffix:       "-1",
+			MultipartPattern: PatternTrailing,
+			TrailingPrefix:   "-uncen",
+			IsMultiPart:      false,
+			File:             scanner.FileInfo{Path: "/videos/IPX-535-uncen-1.mp4"},
+		},
+		{
+			ID:               "IPX-535",
+			PartNumber:       2,
+			PartSuffix:       "-2",
+			MultipartPattern: PatternTrailing,
+			TrailingPrefix:   "-uncen",
+			IsMultiPart:      false,
+			File:             scanner.FileInfo{Path: "/videos/IPX-535-uncen-2.mp4"},
+		},
+	}
+
+	validated := ValidateMultipartInDirectory(results)
+	if !validated[0].IsMultiPart {
+		t.Error("HD-1 should validate with HD-2")
+	}
+	if !validated[1].IsMultiPart {
+		t.Error("HD-2 should validate with HD-1")
+	}
+	if !validated[2].IsMultiPart {
+		t.Error("uncen-1 should validate with uncen-2")
+	}
+	if !validated[3].IsMultiPart {
+		t.Error("uncen-2 should validate with uncen-1")
 	}
 }
