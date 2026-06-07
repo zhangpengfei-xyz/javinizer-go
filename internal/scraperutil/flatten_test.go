@@ -17,12 +17,13 @@ type mockScraperConfig struct {
 	downloadProxy any
 }
 
-func (m *mockScraperConfig) IsEnabled() bool       { return m.enabled }
-func (m *mockScraperConfig) GetUserAgent() string  { return m.userAgent }
-func (m *mockScraperConfig) GetRequestDelay() int  { return m.requestDelay }
-func (m *mockScraperConfig) GetMaxRetries() int    { return m.maxRetries }
-func (m *mockScraperConfig) GetProxy() any         { return m.proxy }
-func (m *mockScraperConfig) GetDownloadProxy() any { return m.downloadProxy }
+func (m *mockScraperConfig) IsEnabled() bool             { return m.enabled }
+func (m *mockScraperConfig) GetUserAgent() string        { return m.userAgent }
+func (m *mockScraperConfig) GetRequestDelay() int        { return m.requestDelay }
+func (m *mockScraperConfig) GetMaxRetries() int          { return m.maxRetries }
+func (m *mockScraperConfig) GetProxy() any               { return m.proxy }
+func (m *mockScraperConfig) GetDownloadProxy() any       { return m.downloadProxy }
+func (m *mockScraperConfig) GetRespectRetryAfter() *bool { return nil }
 
 func boolPtr(b bool) *bool { return &b }
 

@@ -18,12 +18,13 @@ type BaseScraperConfigEmbed struct {
 	UserAgent    string
 }
 
-func (c *testConfig) IsEnabled() bool       { return c.Enabled }
-func (c *testConfig) GetUserAgent() string  { return c.UserAgent }
-func (c *testConfig) GetRequestDelay() int  { return c.RequestDelay }
-func (c *testConfig) GetMaxRetries() int    { return c.MaxRetries }
-func (c *testConfig) GetProxy() any         { return nil }
-func (c *testConfig) GetDownloadProxy() any { return nil }
+func (c *testConfig) IsEnabled() bool             { return c.Enabled }
+func (c *testConfig) GetUserAgent() string        { return c.UserAgent }
+func (c *testConfig) GetRequestDelay() int        { return c.RequestDelay }
+func (c *testConfig) GetMaxRetries() int          { return c.MaxRetries }
+func (c *testConfig) GetProxy() any               { return nil }
+func (c *testConfig) GetDownloadProxy() any       { return nil }
+func (c *testConfig) GetRespectRetryAfter() *bool { return nil }
 
 func (c *testConfig) ValidateConfig(a any) error {
 	return nil

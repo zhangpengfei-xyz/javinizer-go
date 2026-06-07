@@ -39,7 +39,7 @@ func GetOptimalPosterURL(coverURL string, client *http.Client) (posterURL string
 	}
 
 	// Check the resolution of the awsimgsrc poster
-	width, height, err := getImageDimensions(awsimgsrcPosterURL, client)
+	width, height, err := GetImageDimensions(awsimgsrcPosterURL, client)
 	if err != nil {
 		logging.Debugf("ImageUtil: Failed to check awsimgsrc poster dimensions: %v, backend will crop cover", err)
 		return coverURL, false // Backend handles cropping
@@ -106,8 +106,8 @@ func constructAwsimgsrcPosterURL(coverURL string) string {
 	return fmt.Sprintf("https://awsimgsrc.dmm.com/%s", awsimgsrcPath)
 }
 
-// getImageDimensions fetches an image and returns its dimensions
-func getImageDimensions(url string, client *http.Client) (width, height int, err error) {
+// GetImageDimensions fetches an image and returns its dimensions
+func GetImageDimensions(url string, client *http.Client) (width, height int, err error) {
 	if client == nil {
 		client = &http.Client{
 			Timeout: 10 * time.Second,

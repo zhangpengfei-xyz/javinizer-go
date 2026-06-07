@@ -155,6 +155,57 @@ func TestNormalizeDMMScreenshotURL(t *testing.T) {
 	}
 }
 
+func TestDepadContentID(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"5-digit padded", "118gets00081", "118gets081"},
+		{"5-digit padded already 3-digit", "1ipx00535", "1ipx535"},
+		{"5-digit padded 3-digit num", "1sdam00171", "1sdam171"},
+		{"5-digit padded 4-digit prefix", "4sone00860", "4sone860"},
+		{"already 3-digit padded", "118gets081", "118gets081"},
+		{"unpadded 3-digit num", "1ipx535", "1ipx535"},
+		{"1-digit number", "1abw001", "1abw001"},
+		{"no prefix", "ipx535", "ipx535"},
+		{"empty", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, depadContentID(tt.input))
+		})
+	}
+}
+
+func TestDiscoverScreenshots(t *testing.T) {
+	t.Run("empty cover URL", func(t *testing.T) {
+		result := DiscoverScreenshots("", nil)
+		assert.Nil(t, result)
+	})
+
+	t.Run("non-DMM URL", func(t *testing.T) {
+		result := DiscoverScreenshots("https://example.com/cover.jpg", nil)
+		assert.Nil(t, result)
+	})
+
+	t.Run("non-pics DMM URL", func(t *testing.T) {
+		result := DiscoverScreenshots("https://awsimgsrc.dmm.co.jp/dig/video/test/testpl.jpg", nil)
+		assert.Nil(t, result)
+	})
+
+	t.Run("non-digital-video path", func(t *testing.T) {
+		result := DiscoverScreenshots("https://pics.dmm.co.jp/mono/movie/adult/test/testpl.jpg", nil)
+		assert.Nil(t, result)
+	})
+
+	t.Run("non-pl.jpg cover", func(t *testing.T) {
+		result := DiscoverScreenshots("https://pics.dmm.co.jp/digital/video/test/testps.jpg", nil)
+		assert.Nil(t, result)
+	})
+}
+
 func TestUpgradeCoverResolution(t *testing.T) {
 	tests := []struct {
 		name     string

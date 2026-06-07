@@ -346,6 +346,9 @@ func validateUnifiedScraperField(key string, value any, format scraperDecodeForm
 	case "scrape_actress":
 		var v bool
 		return unmarshalByFormat(format, data, &v)
+	case "respect_retry_after":
+		var v bool
+		return unmarshalByFormat(format, data, &v)
 	case "cookies":
 		var v map[string]string
 		return unmarshalByFormat(format, data, &v)

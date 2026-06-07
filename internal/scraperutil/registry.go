@@ -75,6 +75,7 @@ type ScraperConfigInterface interface {
 	GetMaxRetries() int
 	GetProxy() any
 	GetDownloadProxy() any
+	GetRespectRetryAfter() *bool
 }
 
 func GetPriorities() []string {

@@ -40,6 +40,13 @@ func init() {
 				Description: "Additional SHA256 hashes of known placeholder images. Each hash is a 64-character hex string.",
 				Type:        "string",
 			},
+			models.ScraperOption{
+				Key:         "respect_retry_after",
+				Label:       "Respect Retry-After",
+				Description: "Respect the Retry-After header from Cloudflare on 429 rate-limit responses. When enabled, waits the server-specified duration before retrying instead of using only exponential backoff.",
+				Type:        "boolean",
+				Default:     true,
+			},
 		},
 		ScraperDefaults: config.ScraperSettings{
 			Enabled:  true,
@@ -56,8 +63,16 @@ func init() {
 			}
 			return New(settings, globalProxy, globalFlareSolverr), nil
 		},
-		FlatBuilder: func(fc *scraperutil.FlattenedConfig, _ scraperutil.FlattenOverrides) any {
-			return &config.ScraperSettings{Enabled: fc.Enabled, Language: "", RateLimit: fc.RateLimit, Proxy: config.ProxyAsConfig(fc.Proxy), DownloadProxy: config.ProxyAsConfig(fc.DownloadProxy)}
+		FlatBuilder: func(fc *scraperutil.FlattenedConfig, overrides scraperutil.FlattenOverrides) any {
+			return &config.ScraperSettings{
+				Enabled:           fc.Enabled,
+				Language:          overrides.Language,
+				RateLimit:         fc.RateLimit,
+				RetryCount:        fc.MaxRetries,
+				Proxy:             config.ProxyAsConfig(fc.Proxy),
+				DownloadProxy:     config.ProxyAsConfig(fc.DownloadProxy),
+				RespectRetryAfter: fc.RespectRetryAfter,
+			}
 		},
 	}
 	scraperutil.RegisterModule(m)

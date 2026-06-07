@@ -24,8 +24,9 @@ type ScraperSettings struct {
 	// NEW: Per-scraper override for scrape_actress (nil = inherit global)
 	ScrapeActress *bool `yaml:"scrape_actress,omitempty" json:"scrape_actress,omitempty"`
 
-	Cookies map[string]string `yaml:"cookies,omitempty" json:"cookies,omitempty"` // CONF-06: scraper-specific cookies
-	Extra   map[string]any    `yaml:"-" json:"-"`                                 // Scraper-specific fields, flattened on marshal
+	Cookies           map[string]string `yaml:"cookies,omitempty" json:"cookies,omitempty"`                         // CONF-06: scraper-specific cookies
+	RespectRetryAfter *bool             `yaml:"respect_retry_after,omitempty" json:"respect_retry_after,omitempty"` // Respect Retry-After header on 429 responses
+	Extra             map[string]any    `yaml:"-" json:"-"`                                                         // Scraper-specific fields, flattened on marshal
 }
 
 // MarshalYAML preserves the full unified scraper settings shape so config
@@ -62,6 +63,9 @@ func (s *ScraperSettings) MarshalYAML() (interface{}, error) {
 	result["use_browser"] = s.UseBrowser
 	if s.ScrapeActress != nil {
 		result["scrape_actress"] = *s.ScrapeActress
+	}
+	if s.RespectRetryAfter != nil {
+		result["respect_retry_after"] = *s.RespectRetryAfter
 	}
 
 	if len(s.Cookies) > 0 {
@@ -156,6 +160,12 @@ func (s *ScraperSettings) DeepCopy() *ScraperSettings {
 	if s.ScrapeActress != nil {
 		val := *s.ScrapeActress
 		copy.ScrapeActress = &val
+	}
+
+	// Deep copy RespectRetryAfter pointer if set
+	if s.RespectRetryAfter != nil {
+		val := *s.RespectRetryAfter
+		copy.RespectRetryAfter = &val
 	}
 
 	return copy

@@ -311,7 +311,7 @@ func TestGetImageDimensions(t *testing.T) {
 			defer server.Close()
 
 			client := &http.Client{Timeout: 5 * time.Second}
-			width, height, err := getImageDimensions(server.URL, client)
+			width, height, err := GetImageDimensions(server.URL, client)
 
 			if tt.expectError {
 				if err == nil {
@@ -346,7 +346,7 @@ func TestGetImageDimensions_WithNilClient(t *testing.T) {
 	defer server.Close()
 
 	// Call with nil client - should create default client
-	width, height, err := getImageDimensions(server.URL, nil)
+	width, height, err := GetImageDimensions(server.URL, nil)
 
 	if err != nil {
 		t.Fatalf("Unexpected error with nil client: %v", err)
@@ -367,7 +367,7 @@ func TestGetImageDimensions_InvalidImage(t *testing.T) {
 	defer server.Close()
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	_, _, err := getImageDimensions(server.URL, client)
+	_, _, err := GetImageDimensions(server.URL, client)
 
 	if err == nil {
 		t.Error("Expected error for invalid image data, got nil")
@@ -376,7 +376,7 @@ func TestGetImageDimensions_InvalidImage(t *testing.T) {
 
 func TestGetImageDimensions_InvalidURL(t *testing.T) {
 	client := &http.Client{Timeout: 5 * time.Second}
-	_, _, err := getImageDimensions("not-a-valid-url://invalid", client)
+	_, _, err := GetImageDimensions("not-a-valid-url://invalid", client)
 
 	if err == nil {
 		t.Error("Expected error for invalid URL, got nil")

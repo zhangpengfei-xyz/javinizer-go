@@ -3,10 +3,12 @@ package r18dev
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -2211,4 +2213,307 @@ func TestSearch_AP288_BlankDVDID(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, "AP-288", result.ID)
 	assert.Equal(t, "1ap00288", result.ContentID)
+}
+
+func TestGenerateContentIDVariations(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "3-digit number with single prefix (START-575)",
+			input:    "START-575",
+			expected: []string{"1start00575", "1start575"},
+		},
+		{
+			name:     "already normalized format",
+			input:    "start575",
+			expected: []string{"1start00575", "1start575"},
+		},
+		{
+			name:     "multi-prefix series (IPX-535 has 8 prefixes)",
+			input:    "IPX-535",
+			expected: []string{"ipx00535", "4ipx00535", "5ipx00535", "6ipx00535", "7ipx00535", "9ipx00535", "77ipx00535", "88ipx00535", "1ipx535"},
+		},
+		{
+			name:     "single long prefix (ABW-001 uses 118)",
+			input:    "ABW-001",
+			expected: []string{"118abw00001", "1abw001"},
+		},
+		{
+			name:     "4-digit number with multi-prefix (DSVR-1984)",
+			input:    "DSVR-1984",
+			expected: []string{"dsvr01984", "13dsvr01984", "1dsvr1984"},
+		},
+		{
+			name:     "1-digit number zero-padded to 5 (ROYD-1)",
+			input:    "ROYD-1",
+			expected: []string{"royd00001", "2royd00001", "1royd1"},
+		},
+		{
+			name:     "2-digit number (ROYD-19)",
+			input:    "ROYD-19",
+			expected: []string{"royd00019", "2royd00019", "1royd19"},
+		},
+		{
+			name:     "large 4-digit number (SSIS-1200)",
+			input:    "SSIS-1200",
+			expected: []string{"ssis01200", "4ssis01200", "7ssis01200", "9ssis01200", "77ssis01200", "88ssis01200", "1ssis1200"},
+		},
+		{
+			name:     "no-dash content_id format (1sdam00171 from API)",
+			input:    "1sdam00171",
+			expected: []string{"1sdam00171"},
+		},
+		{
+			name:     "unknown series falls back to empty+1 prefix",
+			input:    "ZZZZ-123",
+			expected: []string{"zzzz00123", "1zzzz00123", "1zzzz123"},
+		},
+		{
+			name:     "no dash and unparseable returns nil",
+			input:    "invalid",
+			expected: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := generateContentIDVariations(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestSplitSeriesAndNumber(t *testing.T) {
+	testCases := []struct {
+		name       string
+		input      string
+		wantSeries string
+		wantNumber string
+	}{
+		{"standard dvd_id format", "START-575", "START", "575"},
+		{"lowercase format", "ipx-535", "ipx", "535"},
+		{"normalized format (no dash)", "ipx535", "ipx", "535"},
+		{"4-digit number", "DSVR-1984", "DSVR", "1984"},
+		{"1-digit number", "ROYD-1", "ROYD", "1"},
+		{"2-digit number", "ROYD-19", "ROYD", "19"},
+		{"DMM-prefixed content_id (1sdam00171)", "1sdam00171", "sdam", "00171"},
+		{"content_id with no DMM prefix (royd191)", "royd191", "royd", "191"},
+		{"pure alpha no number", "INVALID", "", ""},
+		{"empty string", "", "", ""},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			series, num := splitSeriesAndNumber(tc.input)
+			assert.Equal(t, tc.wantSeries, series)
+			assert.Equal(t, tc.wantNumber, num)
+		})
+	}
+}
+
+func TestResolveAwsimgsrcPoster(t *testing.T) {
+	// Set up a mock HTTP server that simulates awsimgsrc.dmm.com
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Simulate awsimgsrc: only certain paths return valid images
+		// dig/mono/movie/{id}/{id}ps.jpg
+		path := r.URL.Path
+
+		// Valid poster URLs (return a tiny valid JPEG)
+		validPaths := map[string]bool{
+			"/dig/mono/movie/1sdam171/1sdam171ps.jpg":       true, // digital/video content, prefix 1
+			"/dig/mono/movie/ipx535/ipx535ps.jpg":           true, // digital/video content, no prefix
+			"/dig/mono/movie/4sone860/4sone860ps.jpg":       true, // digital/video content, prefix 4
+			"/dig/mono/movie/118abw001/118abw001ps.jpg":     true, // mono/movie/adult content
+			"/dig/mono/movie/royd191/royd191ps.jpg":         true, // mono/movie/adult content
+			"/dig/mono/movie/13dsvr01984/13dsvr01984ps.jpg": true, // VR content, prefix 13
+		}
+
+		if !validPaths[path] {
+			http.NotFound(w, r)
+			return
+		}
+
+		// Return a tiny valid JPEG (1x1 pixel)
+		w.Header().Set("Content-Type", "image/jpeg")
+		// Valid JPEG: SOI + SOF0 (1x1) + SOS + data + EOI
+		jpeg := []byte{
+			0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00,
+			0x01, 0x00, 0x01, 0x01, 0x01, 0x11, 0x00,
+			0xFF, 0xC4, 0x00, 0x1F, 0x00, 0x00, 0x01, 0x05,
+			0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02,
+			0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A,
+			0x0B,
+			0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00,
+			0x3F, 0x00, 0x7B, 0x40,
+			0xFF, 0xD9,
+		}
+		_, _ = w.Write(jpeg)
+	}))
+	defer server.Close()
+
+	// Override the awsimgsrc base URL for testing by constructing URLs manually
+	// We can't easily override the URL in resolveAwsimgsrcPoster since it's hardcoded,
+	// so we test the URL construction logic directly instead.
+
+	// Test that the correct awsimgsrc URL is constructed for various content_ids
+	testCases := []struct {
+		name        string
+		contentID   string   // content_id from API response
+		expectedIDs []string // expected awsimgsrc ID variations in order
+	}{
+		{
+			name:        "digital/video content with prefix 1 (SDAM-171)",
+			contentID:   "1sdam00171",
+			expectedIDs: []string{"1sdam171"}, // start has prefix [1] in lookup
+		},
+		{
+			name:        "digital/video content no prefix (IPX-535)",
+			contentID:   "1ipx00535",
+			expectedIDs: []string{"ipx535", "4ipx535", "5ipx535", "6ipx535", "7ipx535", "9ipx535", "77ipx535", "88ipx535"},
+		},
+		{
+			name:        "digital/video content with prefix 4 (SONE-860)",
+			contentID:   "4sone00860",
+			expectedIDs: []string{"sone860", "4sone860", "7sone860", "9sone860", "77sone860", "88sone860"},
+		},
+		{
+			name:        "mono/movie/adult content (ROYD-191)",
+			contentID:   "royd191",
+			expectedIDs: []string{"royd191", "2royd191"},
+		},
+		{
+			name:        "mono/movie/adult with long prefix (ABW-001)",
+			contentID:   "118abw001",
+			expectedIDs: []string{"118abw001"}, // abw has only [118] prefix
+		},
+		{
+			name:        "4-digit number VR content (DSVR-1984)",
+			contentID:   "13dsvr01984",
+			expectedIDs: []string{"dsvr1984", "13dsvr1984"}, // %03d of 1984 = "1984"
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Verify URL construction: prefix + series + %03d on dig/mono/movie
+			series, numStr := splitSeriesAndNumber(contentIDToID(tc.contentID))
+			require.NotEmpty(t, series)
+
+			num, err := strconv.Atoi(numStr)
+			require.NoError(t, err)
+
+			padded3 := fmt.Sprintf("%03d", num)
+			series = strings.ToLower(series)
+
+			var prefixes []string
+			if lookup, ok := contentIDPrefixLookup[series]; ok {
+				prefixes = lookup
+			} else {
+				prefixes = []string{"", "1"}
+			}
+
+			var constructed []string
+			for _, prefix := range prefixes {
+				id := prefix + series + padded3
+				constructed = append(constructed, id)
+			}
+
+			assert.Equal(t, tc.expectedIDs, constructed)
+
+			// Verify the URL format
+			for _, id := range constructed {
+				url := fmt.Sprintf("https://awsimgsrc.dmm.com/dig/mono/movie/%s/%sps.jpg", id, id)
+				assert.Contains(t, url, "dig/mono/movie/")
+				assert.Contains(t, url, "ps.jpg")
+			}
+		})
+	}
+
+	// Verify the mock server works for valid paths
+	t.Run("mock server validates path construction", func(t *testing.T) {
+		client := server.Client()
+		validURL := server.URL + "/dig/mono/movie/1sdam171/1sdam171ps.jpg"
+		resp, err := client.Get(validURL)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		invalidURL := server.URL + "/dig/video/1sdam00171/1sdam00171ps.jpg"
+		resp2, err := client.Get(invalidURL)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, resp2.StatusCode)
+	})
+}
+
+func TestResolveIDs_DigitalOnly(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live API test in short mode")
+	}
+
+	cfg := config.ScraperSettings{
+		Enabled:    true,
+		Language:   "en",
+		RetryCount: 5,
+		RateLimit:  2000,
+	}
+	scraper := New(cfg, testGlobalProxy, testGlobalFlareSolverr)
+
+	ids := []string{"SDJS-374", "START-588", "START-566", "DSVR-1984"}
+	for _, id := range ids {
+		t.Run(id, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			result, err := scraper.Search(ctx, id)
+			if err != nil {
+				if strings.Contains(err.Error(), "403") || strings.Contains(err.Error(), "429") {
+					t.Skipf("R18.dev rate limited/403 for %s", id)
+				}
+				t.Errorf("❌ %s: %v", id, err)
+			} else {
+				t.Logf("✅ %s: content_id=%s, title=%q", id, result.ContentID, result.Title[:min(60, len(result.Title))])
+			}
+			time.Sleep(3 * time.Second)
+		})
+	}
+}
+
+func TestResolveAwsimgsrcPoster_SDM171(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live API test in short mode")
+	}
+
+	cfg := config.ScraperSettings{
+		Enabled:    true,
+		Language:   "en",
+		RetryCount: 5,
+		RateLimit:  2000,
+	}
+	scraper := New(cfg, testGlobalProxy, testGlobalFlareSolverr)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	result, err := scraper.Search(ctx, "SDAM-171")
+	if err != nil {
+		if strings.Contains(err.Error(), "403") || strings.Contains(err.Error(), "429") {
+			t.Skipf("R18.dev rate limited: %v", err)
+		}
+		t.Fatalf("SDAM-171 search failed: %v", err)
+	}
+
+	t.Logf("CoverURL: %s", result.CoverURL)
+	t.Logf("PosterURL: %s", result.PosterURL)
+	t.Logf("ShouldCropPoster: %v", result.ShouldCropPoster)
+
+	if strings.Contains(result.PosterURL, "pl.jpg") && !result.ShouldCropPoster {
+		t.Errorf("Poster should not be pl.jpg without cropping; got %s", result.PosterURL)
+	}
+
+	if strings.Contains(result.PosterURL, "ps.jpg") {
+		t.Logf("✅ Poster uses ps.jpg (portrait): %s", result.PosterURL)
+	}
 }

@@ -16,12 +16,13 @@ type mockScraperConfig struct {
 	downloadProxy any
 }
 
-func (m *mockScraperConfig) IsEnabled() bool       { return m.enabled }
-func (m *mockScraperConfig) GetUserAgent() string  { return "" }
-func (m *mockScraperConfig) GetRequestDelay() int  { return m.requestDelay }
-func (m *mockScraperConfig) GetMaxRetries() int    { return 0 }
-func (m *mockScraperConfig) GetProxy() any         { return m.proxy }
-func (m *mockScraperConfig) GetDownloadProxy() any { return m.downloadProxy }
+func (m *mockScraperConfig) IsEnabled() bool             { return m.enabled }
+func (m *mockScraperConfig) GetUserAgent() string        { return "" }
+func (m *mockScraperConfig) GetRequestDelay() int        { return m.requestDelay }
+func (m *mockScraperConfig) GetMaxRetries() int          { return 0 }
+func (m *mockScraperConfig) GetProxy() any               { return m.proxy }
+func (m *mockScraperConfig) GetDownloadProxy() any       { return m.downloadProxy }
+func (m *mockScraperConfig) GetRespectRetryAfter() *bool { return nil }
 
 func TestFlattenFunc_WithValidConfig(t *testing.T) {
 	fn := scraperutil.GetFlattenFunc("tokyohot")

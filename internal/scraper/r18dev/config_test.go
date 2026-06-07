@@ -260,7 +260,14 @@ respect_retry_after: false
 			err := yaml.Unmarshal([]byte(tt.yamlConfig), &r18Cfg)
 			assert.NoError(t, err, "YAML unmarshal should succeed")
 			assert.Equal(t, tt.wantEnabled, r18Cfg.Enabled, "Enabled should match YAML value")
-			assert.Equal(t, tt.wantRespectRetryAfter, r18Cfg.RespectRetryAfter, "RespectRetryAfter should match YAML value")
+			if tt.wantRespectRetryAfter {
+				assert.NotNil(t, r18Cfg.RespectRetryAfter, "RespectRetryAfter should be non-nil")
+				assert.True(t, *r18Cfg.RespectRetryAfter, "RespectRetryAfter should be true")
+			} else {
+				if r18Cfg.RespectRetryAfter != nil {
+					assert.False(t, *r18Cfg.RespectRetryAfter, "RespectRetryAfter should be false")
+				}
+			}
 
 			// Step 2: Convert to ScraperSettings via FlatToScraperConfig
 			settings := config.FlatToScraperConfig("r18dev", &r18Cfg)
@@ -371,9 +378,8 @@ extra:
 	assert.Equal(t, "en", r18Cfg.Language)
 	assert.Equal(t, 1500, r18Cfg.RequestDelay)
 	assert.Equal(t, 3, r18Cfg.MaxRetries)
-	assert.True(t, r18Cfg.RespectRetryAfter)
-
-	// Convert and verify settings
+	assert.NotNil(t, r18Cfg.RespectRetryAfter)
+	assert.True(t, *r18Cfg.RespectRetryAfter)
 	settings := config.FlatToScraperConfig("r18dev", &r18Cfg)
 	assert.NotNil(t, settings)
 	assert.True(t, settings.Enabled)
@@ -405,7 +411,8 @@ priority: 10
 	assert.Equal(t, "ja", r18Cfg.Language)
 	assert.Equal(t, 2000, r18Cfg.RequestDelay)
 	assert.Equal(t, 5, r18Cfg.MaxRetries)
-	assert.True(t, r18Cfg.RespectRetryAfter)
+	assert.NotNil(t, r18Cfg.RespectRetryAfter)
+	assert.True(t, *r18Cfg.RespectRetryAfter)
 	assert.Equal(t, 10, r18Cfg.Priority)
 	assert.True(t, r18Cfg.Enabled)
 }

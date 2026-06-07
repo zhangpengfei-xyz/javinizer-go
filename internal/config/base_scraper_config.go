@@ -9,7 +9,7 @@ type BaseScraperConfig struct {
 	DownloadProxy     *ProxyConfig       `yaml:"download_proxy,omitempty" json:"download_proxy,omitempty"`
 	Priority          int                `yaml:"priority" json:"priority"`
 	FlareSolverr      FlareSolverrConfig `yaml:"flaresolverr" json:"flaresolverr"`
-	RespectRetryAfter bool               `yaml:"respect_retry_after" json:"respect_retry_after"`
+	RespectRetryAfter *bool              `yaml:"respect_retry_after,omitempty" json:"respect_retry_after,omitempty"`
 }
 
 func (c BaseScraperConfig) IsEnabled() bool      { return c.Enabled }
@@ -29,6 +29,8 @@ func (c BaseScraperConfig) GetDownloadProxy() any {
 	}
 	return c.DownloadProxy
 }
+
+func (c BaseScraperConfig) GetRespectRetryAfter() *bool { return c.RespectRetryAfter }
 
 func ProxyAsConfig(p any) *ProxyConfig {
 	if p == nil {

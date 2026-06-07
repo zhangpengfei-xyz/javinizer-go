@@ -10,10 +10,12 @@ type FlattenOverrides struct {
 }
 
 type FlattenedConfig struct {
-	Enabled       bool
-	RateLimit     int
-	Proxy         any
-	DownloadProxy any
+	Enabled           bool
+	RateLimit         int
+	MaxRetries        int
+	RespectRetryAfter *bool
+	Proxy             any
+	DownloadProxy     any
 }
 
 func ExtractFlattenedConfig(cfg any) (*FlattenedConfig, bool) {
@@ -22,10 +24,12 @@ func ExtractFlattenedConfig(cfg any) (*FlattenedConfig, bool) {
 		return nil, false
 	}
 	return &FlattenedConfig{
-		Enabled:       c.IsEnabled(),
-		RateLimit:     c.GetRequestDelay(),
-		Proxy:         c.GetProxy(),
-		DownloadProxy: c.GetDownloadProxy(),
+		Enabled:           c.IsEnabled(),
+		RateLimit:         c.GetRequestDelay(),
+		MaxRetries:        c.GetMaxRetries(),
+		RespectRetryAfter: c.GetRespectRetryAfter(),
+		Proxy:             c.GetProxy(),
+		DownloadProxy:     c.GetDownloadProxy(),
 	}, true
 }
 

@@ -347,6 +347,20 @@ func TestScraperSettings_DeepCopy(t *testing.T) {
 		*result.ScrapeActress = false
 		assert.True(t, *s.ScrapeActress, "Original should not be modified")
 	})
+
+	t.Run("respect_retry_after_deep_copy", func(t *testing.T) {
+		val := false
+		s := &ScraperSettings{
+			RespectRetryAfter: &val,
+		}
+
+		result := s.DeepCopy()
+		assert.NotNil(t, result.RespectRetryAfter)
+		assert.Equal(t, *s.RespectRetryAfter, *result.RespectRetryAfter)
+
+		*result.RespectRetryAfter = true
+		assert.False(t, *s.RespectRetryAfter, "Original should not be modified")
+	})
 }
 
 func TestScraperSettings_ShouldScrapeActress(t *testing.T) {
