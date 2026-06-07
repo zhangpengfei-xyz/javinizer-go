@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.3.10-alpha] - 2026-06-07
+
+### Added
+
+- Content-ID variation fallback for digital-only r18.dev titles that return 404 on the dvd_id endpoint
+- Awsimgsrc poster resolution using prefix lookup table for digital/video content
+- Screenshot discovery fallback that probes pics.dmm.co.jp when the API returns no screenshots or placeholder filter removes all
+- DepadContentID to handle zero-padded content_ids (e.g. 118gets00081 → 118gets081)
+- Configurable RespectRetryAfter setting for r18dev scraper with tri-state *bool (nil = default true)
+- 274KB content_id_prefixes lookup table generated from r18.dev database dump
+
+### Changed
+
+- Retry logic uses max(Retry-After, exponential backoff) when RespectRetryAfter is enabled
+- Export GetImageDimensions from imageutil for reuse
+- Move DiscoverScreenshots fallback after placeholder filter so it triggers when all screenshots are filtered
+
 ## [v0.3.9-alpha] - 2026-06-06
 
 ### Added
