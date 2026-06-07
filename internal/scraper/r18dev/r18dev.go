@@ -322,7 +322,8 @@ func (s *Scraper) resolveByContentIDVariations(ctx context.Context, id string) (
 }
 
 // generateContentIDVariations constructs possible content_id formats from a dvd_id.
-// For "START-575", generates: ["1start00575", "start00575", "1start575"]
+// For "START-575", generates: ["1start00575", "1start575"]
+// For "ABF-346", generates: ["118abf00346", "118abf346", "436abf00346", "436abf346"]
 // The r18.dev content_id format is: [DMM-prefix][series][zero-padded-number]
 // Uses the contentIDPrefixLookup table built from r18.dev database dumps to find
 // known prefixes per series. Falls back to common prefixes if the series is unknown.
