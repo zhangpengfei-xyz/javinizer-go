@@ -167,13 +167,35 @@ flowchart TD
     ApplyLang --> Return["返回详情页 URL"]
 ```
 
-`findDetailURL()` 的页面假设是搜索结果中存在 `a.movie-box[href]`。匹配顺序如下：
+`findDetailURL()` 的页面假设是搜索结果中存在 `a.movie-box[href]`。
 
-1. 读取 `a.movie-box` 内部第一个 `<date>` 文本作为候选 ID。
-2. 读取 `a.movie-box` 的 `title` 属性作为候选标题。
-3. 使用 `scraperutil.NormalizeID()` 去掉大小写、空格和符号差异后比较候选 ID。
-4. 如果候选标题或链接中包含目标 ID，也视为匹配。
-5. 如果没有明确匹配，但页面只有一个 `a.movie-box[href]`，则使用该唯一结果作为兜底。
+Chrome 中打开的中文演员列表页确认了真实结构：
+
+```html
+<a class="movie-box" href="https://www.javbus.com/ABP-853">
+  <div class="photo-frame">
+    <img src="/pics/thumb/733b.jpg" title="スプラッシュまりあ まりあ史上最大噴射量！！ 愛音まりあ">
+  </div>
+  <div class="photo-info">
+    <span>...</span>
+    <date>ABP-853</date> / 2019-05-03
+  </div>
+</a>
+```
+
+详情页底部的相关影片也使用 `a.movie-box`，但通常没有 `<date>`，ID 只能从 `href` 最后一段得到，标题来自 `a[title]` 或 `.photo-info` 文本。
+
+页面确认后的推荐候选规则：
+
+1. 遍历 `a.movie-box[href]`。
+2. 优先读取内部 `<date>` 文本作为候选 ID；演员/搜索列表页通常有这个字段。
+3. 同时读取 `href` 最后一段作为候选 ID；这是列表和详情页相关影片都具备的稳定信号。
+4. 标题候选依次可取 `a[title]`、`img[title]`、`.photo-info` 文本。
+5. 使用 `scraperutil.NormalizeID()` 去掉大小写、空格和符号差异后比较候选 ID。
+6. 如果候选标题或链接中包含目标 ID，也视为匹配。
+7. 如果没有明确匹配，但页面只有一个 `a.movie-box[href]`，则使用该唯一结果作为兜底。
+
+当前实现已使用 `<date>`、`a[title]` 和完整 `href` 参与匹配；`img[title]` 和 `.photo-info` 是根据真实页面确认出的可选优化候选。
 
 找到的 href 会通过 `scraperutil.ResolveURL(base, href)` 转成绝对 URL，然后再应用语言路径。
 
@@ -244,12 +266,13 @@ flowchart TD
 | 信息区 | `#info p`、`.info p` | 发售日、时长、导演、制作商、发行商、系列等文本字段。 |
 | 信息标签 | `span.header` | 多语言字段名定位。 |
 | 信息链接 | 信息区中的 `a` | 导演、制作商、发行商、系列等链接字段优先取 anchor 文本。 |
-| 演员区 | `#star-div`、`#avatar-waterfall`、`.star-show`、`.star-name` | 演员名称和头像。 |
-| 演员链接 | `a[href*='/star/']` | 演员候选节点。 |
-| 类型区 | `#genre-toggle a`、`a[href*='/genre/']` | 影片类型标签。 |
-| 封面 | `a.bigImage`、`#cover img` | 封面 URL。 |
-| 样例图 | `a.sample-box`、`#sample-waterfall`、`.photo-frame img` | 截图 URL 列表。 |
-| 预告片 | `video source[src]` | Trailer URL。 |
+| 类型区 | `.info span.genre a[href*='/genre/']`、`#info span.genre a[href*='/genre/']` | 影片类型标签；`#genre-toggle` 只是展开图标，本身不包含链接。 |
+| 演员文本 | `.info a[href*='/star/']`、`#info a[href*='/star/']` | 信息区演员名称。 |
+| 演员头像 | `#avatar-waterfall a.avatar-box`、`#star-div a.avatar-box` | 演员名称和头像。 |
+| 封面 | `a.bigImage[href]`、`a.bigImage img[src]`、`#cover img` | 封面 URL。 |
+| 样例图 | `a.sample-box[href]` | 首选全尺寸截图 URL；打开的详情页 href 指向 DMM `...jp-1.jpg` 等大图。 |
+| 样例图缩略图 | `a.sample-box img[src]`、`#sample-waterfall img[src]` | 仅在没有大图链接时兜底。 |
+| 预告片 | `video source[src]` | Trailer URL；打开的详情页没有官方 video source。 |
 | 描述 | `meta[name='description']`、`meta[property='og:description']` | 简介。 |
 
 ## 8. 字段提取规则
@@ -322,14 +345,16 @@ ID 和标题提取顺序：
 
 `extractActresses()` 提取 `[]models.ActressInfo`。
 
-第一轮从更明确的演员展示区读取：
+页面确认后的最稳规则是“头像区补图、信息区补文本”。
+
+第一轮从更明确的演员展示区读取头像和名称：
 
 ```css
-#star-div a[href*='/star/'],
-#avatar-waterfall a[href*='/star/'],
-.star-show a[href*='/star/'],
-.star-name a[href*='/star/']
+#avatar-waterfall a.avatar-box[href*='/star/'],
+#star-div a.avatar-box[href*='/star/']
 ```
+
+当前实现还保留 `.star-show a[href*='/star/']` 和 `.star-name a[href*='/star/']` 兼容分支；在打开的详情页中，`.star-show` 本身是标题行，实际演员链接来自后续信息区补充。
 
 每个演员节点的名称优先级：
 
@@ -339,7 +364,7 @@ ID 和标题提取顺序：
 
 头像来自子节点 `img[src]`。
 
-第二轮从信息区补充演员链接：
+第二轮从信息区补充演员链接。真实详情页中演员文本位于 `.star-show` 后一个 `p` 里的 `a[href*='/star/']`，外层也带 `span.genre`，因此必须用 href 判断它是演员而不是类型：
 
 ```css
 #info a[href*='/star/'],
@@ -367,10 +392,12 @@ ID 和标题提取顺序：
 
 `extractGenres()` 返回去重后的类型列表。
 
-提取顺序：
+页面确认后的有效提取顺序：
 
-1. `#genre-toggle a`
-2. `#info a[href*='/genre/'], .info a[href*='/genre/']`
+1. `#info a[href*='/genre/'], .info a[href*='/genre/']`
+2. 当前实现还会先查一次 `#genre-toggle a`，但真实页面中 `#genre-toggle` 是加号图标，不包含类型链接，可视为无效兼容分支。
+
+不要使用页面级 `a[href*='/genre/']`。打开的详情页顶部导航也包含 `高清/字幕`、`HD/SUB` 等链接，只有限定在 `.info/#info` 内才是影片自身类型。
 
 每个标签都会经过 `scraperutil.CleanString()`，空值会被跳过，重复值会被忽略。
 
@@ -411,6 +438,8 @@ a.sample-box[href],
 #sample-waterfall a[href]
 ```
 
+打开的详情页确认 `a.sample-box[href]` 是全尺寸 DMM 样例图，例如 `https://pics.dmm.co.jp/digital/video/118abp00906/118abp00906jp-1.jpg`；其内部 `img[src]` 是 JavBus 本站缩略图，例如 `/pics/sample/7blx_1.jpg`。因此应始终优先 href。
+
 如果第一轮没有结果，再读取图片节点：
 
 ```css
@@ -433,9 +462,13 @@ a.sample-box img[data-original],
 4. 检查图片扩展名。
 5. 用 map 去重。
 
+需要注意：`.photo-frame img` 在详情页还会出现在演员头像、相关影片和列表卡片里，所以只能作为“没有任何 `sample-box` 或 `#sample-waterfall` 大图链接时”的最后兜底。
+
 ### 8.8 预告片
 
 `extractTrailerURL()` 读取第一个 `video source[src]`，清洗后返回。当前实现不对 trailer URL 做绝对路径解析，也不检查媒体扩展名。
+
+打开的中英文详情页没有官方 `video source`。页面上存在广告 iframe 和 magnet/download 链接，但它们不是 trailer；抓取规则应保持只接受明确视频元素，不应从任意 `iframe[src]`、`magnet:` 或 `.mp4` 下载链接推断预告片。
 
 ## 9. URL 语言处理
 
@@ -504,16 +537,19 @@ JavBus scraper 尽量返回 typed scraper error，便于 CLI/API/UI 做用户可
 JavBus 页面结构可能变化，后续维护时建议按以下顺序排查：
 
 1. 搜索失败时，先检查搜索结果页是否仍然使用 `a.movie-box[href]` 和 `<date>`。
-2. 详情页基础字段缺失时，检查 `#info p`、`.info p`、`span.header` 是否变更。
-3. 演员缺失时，检查演员区选择器和 `img[title]` 是否仍存在。
-4. 图片缺失时，检查 `a.bigImage`、`#cover`、`#sample-waterfall`、`.photo-frame` 是否变更，以及图片 URL 扩展名是否仍可被 `isLikelyImageURL()` 接受。
-5. 频繁 blocked 时，优先确认站点是否新增验证页面标记，再考虑 FlareSolverr、代理或 cookie 策略。
+2. 如果 `<date>` 缺失，优先检查是否能从 `a.movie-box[href]` 最后一段解析 ID；详情页相关影片就是这种结构。
+3. 详情页基础字段缺失时，检查 `#info p`、`.info p`、`span.header` 是否变更。
+4. 类型缺失或混入导航项时，检查选择器是否仍限定在 `.info/#info` 内。
+5. 演员缺失时，检查 `.info a[href*='/star/']` 和 `#avatar-waterfall a.avatar-box` 是否仍存在。
+6. 图片缺失时，检查 `a.bigImage`、`a.sample-box[href]`、`#sample-waterfall` 是否变更，以及图片 URL 扩展名是否仍可被 `isLikelyImageURL()` 接受。
+7. 频繁 blocked 时，优先确认站点是否新增验证页面标记，再考虑 FlareSolverr、代理或 cookie 策略。
 
 可改进点：
 
 - `extractInfoLinkValue()` 当前只识别带 `span.header` 的字段，不像 `extractInfoValue()` 那样支持冒号拆分兜底。
 - `extractTrailerURL()` 当前不做相对 URL 解析，若站点返回相对路径会原样输出。
 - `extractCoverURL()` 的 `data-src`、`data-original` 选择器当前仍读取 `src` 属性；如果 JavBus 只提供 lazy-load 属性，需要同步调整属性读取逻辑。
+- `findDetailURL()` 当前已经用 `href` 参与 ID 匹配；文档确认的演员列表页也支持从 `href` 最后一段直接提取候选 ID，可考虑在实现中显式记录这个候选以便调试。
 - `normalizeLanguage()` 的空值默认是 `zh`，而模块默认配置是 `ja`；如果新增配置入口，需要确认实际传入值是否符合预期。
 - `findDetailURL()` 对唯一搜索结果会直接兜底接受，适合提升成功率，但在搜索结果页变宽时可能需要更严格的匹配策略。
 - 标题解析正则已经捕获标题分组，但当前实现实际通过原始 title 文本切片得到标题；如果后续标题格式复杂化，可以考虑直接使用捕获分组并保留原始大小写。
